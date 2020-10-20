@@ -30,8 +30,7 @@ def Histogram(vector, color, bins, ax=None, linewidth=1.0):
         fig = plt.figure()
         ax = fig.add_subplot(111)
     ax.hist(dvector, color=color, histtype="step", bins=bins, linewidth=linewidth)
-
-
+             
 def PlottingResults(
     tmpfolder,
     Dataframe,
@@ -42,7 +41,6 @@ def PlottingResults(
     suffix=".png",
     resolution=100,
     linewidth=1.0,
-
 ):
     """ Plots poses vs time; pose x vs pose y; histogram of differences and likelihoods."""
     pcutoff = cfg["pcutoff"]
@@ -119,6 +117,7 @@ def PlottingResults(
                     alpha=alphavalue,
                 )
 
+
                 Histogram(temp_x, colors(bpindex), bins, ax4, linewidth=linewidth)
                 Histogram(temp_y, colors(bpindex), bins, ax4, linewidth=linewidth)
 
@@ -131,7 +130,6 @@ def PlottingResults(
         cbar = plt.colorbar(sm, ax=ax, ticks=range(len(bodyparts2plot)))
         cbar.set_ticklabels(bodyparts2plot)
 
-<<<<<<< HEAD
     fig1.savefig(
         os.path.join(tmpfolder, "trajectory" + suffix),
         bbox_inches="tight",
@@ -148,12 +146,7 @@ def PlottingResults(
     fig4.savefig(
         os.path.join(tmpfolder, "hist" + suffix), bbox_inches="tight", dpi=resolution
     )
-=======
-    fig1.savefig(os.path.join(tmpfolder, "trajectory" + suffix), dpi=resolution)
-    fig2.savefig(os.path.join(tmpfolder, "plot" + suffix), dpi=resolution)
-    fig3.savefig(os.path.join(tmpfolder, "plot-likelihood" + suffix), dpi=resolution)
-    fig4.savefig(os.path.join(tmpfolder, "hist" + suffix), dpi=resolution)
->>>>>>> Added resolution dpi argument to plot_trajectories
+
 
     if not showfigures:
         plt.close("all")
@@ -179,13 +172,9 @@ def plot_trajectories(
     destfolder=None,
     modelprefix="",
     track_method="",
-<<<<<<< HEAD
     imagetype=".png",
     resolution=100,
     linewidth=1.0,
-=======
-    resolution = 100
->>>>>>> Added resolution dpi argument to plot_trajectories
 ):
     """
     Plots the trajectories of various bodyparts across the video.
@@ -221,6 +210,15 @@ def plot_trajectories(
 
     destfolder: string, optional
         Specifies the destination folder that was used for storing analysis data (default is the path of the video).
+        
+    imagetype: string, default ".png"
+        Specifies the output image format, tested '.tif', '.jpg', '.svg'
+
+    resolution: int, default 100
+        Specifies the resolution (in dpi) of saved figures. Note higher resolution figures take longer to generate.
+        
+    linewidth: float, default 1.0
+        Specifies width of line for line and histogram plots.
 
     imagetype: string, default ".png"
         Specifies the output image format, tested '.tif', '.jpg', '.svg' and ".png". 
@@ -322,14 +320,9 @@ def plot_trajectories(
                     labeled_bpts,
                     animal,
                     showfigures,
-<<<<<<< HEAD
                     suffix + animal + imagetype,
                     resolution=resolution,
-                    linewidth=linewidth,
-=======
-                    suffix + animal + ".png",
-                    resolution=resolution
->>>>>>> Added resolution dpi argument to plot_trajectories
+                    linewidth=linewidth
                 )
         except FileNotFoundError as e:
             failed.append(True)

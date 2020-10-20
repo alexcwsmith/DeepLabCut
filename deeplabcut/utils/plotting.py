@@ -41,7 +41,7 @@ def PlottingResults(
     showfigures=False,
     suffix=".png",
     resolution=100,
-    linewidth=1.0,
+    linewidth=1.0
 ):
     """ Plots poses vs time; pose x vs pose y; histogram of differences and likelihoods."""
     pcutoff = cfg["pcutoff"]
@@ -129,6 +129,7 @@ def PlottingResults(
         cbar = plt.colorbar(sm, ax=ax, ticks=range(len(bodyparts2plot)))
         cbar.set_ticklabels(bodyparts2plot)
 
+<<<<<<< HEAD
     fig1.savefig(
         os.path.join(tmpfolder, "trajectory" + suffix),
         bbox_inches="tight",
@@ -145,6 +146,12 @@ def PlottingResults(
     fig4.savefig(
         os.path.join(tmpfolder, "hist" + suffix), bbox_inches="tight", dpi=resolution
     )
+=======
+    fig1.savefig(os.path.join(tmpfolder, "trajectory" + suffix), dpi=resolution)
+    fig2.savefig(os.path.join(tmpfolder, "plot" + suffix), dpi=resolution)
+    fig3.savefig(os.path.join(tmpfolder, "plot-likelihood" + suffix), dpi=resolution)
+    fig4.savefig(os.path.join(tmpfolder, "hist" + suffix), dpi=resolution)
+>>>>>>> Added resolution dpi argument to plot_trajectories
 
     if not showfigures:
         plt.close("all")
@@ -170,9 +177,13 @@ def plot_trajectories(
     destfolder=None,
     modelprefix="",
     track_method="",
+<<<<<<< HEAD
     imagetype=".png",
     resolution=100,
     linewidth=1.0,
+=======
+    resolution = 100
+>>>>>>> Added resolution dpi argument to plot_trajectories
 ):
     """
     Plots the trajectories of various bodyparts across the video.
@@ -300,9 +311,14 @@ def plot_trajectories(
                     labeled_bpts,
                     animal,
                     showfigures,
+<<<<<<< HEAD
                     suffix + animal + imagetype,
                     resolution=resolution,
                     linewidth=linewidth,
+=======
+                    suffix + animal + ".png",
+                    resolution=resolution
+>>>>>>> Added resolution dpi argument to plot_trajectories
                 )
         except FileNotFoundError as e:
             failed.append(True)

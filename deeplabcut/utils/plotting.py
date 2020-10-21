@@ -31,7 +31,7 @@ def Histogram(vector, color, bins, ax=None, linewidth=1.0):
         ax = fig.add_subplot(111)
     ax.hist(dvector, color=color, histtype="step", bins=bins, linewidth=linewidth)
 
-             
+
 def PlottingResults(
     tmpfolder,
     Dataframe,
@@ -209,13 +209,13 @@ def plot_trajectories(
 
     destfolder: string, optional
         Specifies the destination folder that was used for storing analysis data (default is the path of the video).
-        
+
     imagetype: string, default ".png"
         Specifies the output image format, tested '.tif', '.jpg', '.svg'
 
     resolution: int, default 100
         Specifies the resolution (in dpi) of saved figures. Note higher resolution figures take longer to generate.
-        
+
     linewidth: float, default 1.0
         Specifies width of line for line and histogram plots.
 

@@ -7,7 +7,10 @@ Created on Mon Nov  9 19:36:09 2020
 """
 
 import os
+<<<<<<< HEAD
 os.chdir('/d1/studies/DeepLabCut_Forked/DeepLabCut/')
+=======
+>>>>>>> Added custom scripts
 import ACWS_DLC_helperFunctions as hf
 
 #Aggregate plot-poses by plot type

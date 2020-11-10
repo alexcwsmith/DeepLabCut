@@ -35,7 +35,6 @@ def extractPoses(parentDirectory):
             targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
             shutil.copyfile(fullpath, targpath)
 
-
 def interpolateValues(file, pcutoff):
     df = pd.read_csv(file, index_col=0, skiprows=[0], header=[0,1])    
     bodyparts = set(df.columns[x][0] for x in range(len(df.columns)))

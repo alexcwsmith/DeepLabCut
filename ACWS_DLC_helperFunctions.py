@@ -17,7 +17,6 @@ def extractPoses(parentDirectory):
     for path in paths:
         folder = os.path.join(parentDirectory, path)
         folders.append(folder)
-        
     for fold in folders:
         files = os.listdir(fold)
         sample = fold.split('/')[-1].split('.')[0]

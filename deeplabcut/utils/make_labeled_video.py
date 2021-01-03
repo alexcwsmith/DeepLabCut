@@ -71,7 +71,7 @@ def CreateVideo(
     draw_skeleton,
     displaycropped,
     color_by,
-):
+    ):
     """Creating individual frames with labeled body parts and making a video"""
     bpts = Dataframe.columns.get_level_values("bodyparts")
     all_bpts = bpts.values[::3]

@@ -3,10 +3,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
@@ -17,13 +17,13 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="deeplabcut",
-    version="2.2b8",
+    version="2.1.9",
     author="A. & M. Mathis Labs",
-    author_email="alexander.mathis@bethgelab.org",
+    author_email="alexander@deeplabcut.org",
     description="Markerless pose-estimation of user-defined features with deep learning",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/AlexEMG/DeepLabCut",
+    url="https://github.com/DeepLabCut/DeepLabCut",
     install_requires=[
         "bayesian-optimization",
         "certifi",

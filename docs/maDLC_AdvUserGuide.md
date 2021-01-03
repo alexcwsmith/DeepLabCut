@@ -6,7 +6,7 @@ The standard documents include all changes to the package to run standard and ma
 Note, we STRONGLY encourage you to use the [Project Manager GUI](https://github.com/DeepLabCut/DeepLabCut/blob/master/docs/PROJECT_GUI.md) when you first start using multi-animal mode. Each tab is customized for multi-animal when you create or load a multi-animal project. As long as you follow the recommendations within the GUI, you should be good to go! 
 
 This document should serve as an **advanced user guide for maDLC,**
-and it is here to support the scientific advances presented in the preprint (Mathis et al, 2020).
+and it is here to support the scientific advances presented in a forethcoming preprint.
 
 # How to think about using maDLC:
 
@@ -32,7 +32,7 @@ Thus, you should always label, train, and evaluate the pose estimation performan
 
 - if you are looking for resources to increase your understanding of the software and general guidelines, we have an open source, free course: http://DLCcourse.deeplabcut.org. 
 
-**Please note:** what we cannot do is provided support or help designing your experiments and data analysis. The number of requests for this is too great to sustain. We are happy to anser such questions in the forum as a community, in a scalable way. We hope and believe we have given enough tools and resources to get started and to accelerate your research program, and this is backed by the >400 citations using DLC, 2 clinical trials by others, and countless applications. Thus, we believe this code works, is accessible, and with limited programming knowledge can be used. Please read our [Missions & Values statement](https://github.com/DeepLabCut/DeepLabCut/blob/master/docs/MISSION_AND_VALUES.md) to learn more about what we DO hope to provide you. 
+**Please note:** what we cannot do is provided support or help designing your experiments and data analysis. The number of requests for this is too great to sustain. We are happy to answer such questions in the forum as a community, in a scalable way. We hope and believe we have given enough tools and resources to get started and to accelerate your research program, and this is backed by the >500 citations using DLC, 2 clinical trials by others, and countless applications. Thus, we believe this code works, is accessible, and with limited programming knowledge can be used. Please read our [Missions & Values statement](https://github.com/DeepLabCut/DeepLabCut/blob/master/docs/MISSION_AND_VALUES.md) to learn more about what we DO hope to provide you. 
 
 # Install and test: 
 
@@ -70,7 +70,7 @@ Tip: if you want to place the project folder somewhere pass : ``working_director
 ```python
 config_path = '/thefulloutputpath/config.yaml'
 ```
- - just be mindful of the formatting for Windows vs. Unix, see below.
+ - just be mindful of the formatting for Windows vs. Unix, see above.
 
 This set of arguments will create a project directory with the name **Name of the project+name of the experimenter+date of creation of the project** in the **Working directory** and creates the symbolic links to videos in the **videos** directory. The project directory will have subdirectories: **dlc-models**, **labeled-data**, **training-datasets**, and **videos**.  All the outputs generated during the course of a project will be stored in one of these subdirectories, thus allowing each project to be curated in separation from other projects. The purpose of the subdirectories is as follows:
 
@@ -87,6 +87,8 @@ deeplabcut.add_new_videos('Full path of the project configuration file*', ['full
 ```
 
 *Please note, *Full path of the project configuration file* will be referenced as ``config_path`` throughout this protocol.
+
+You can also use annotated data from singe-animal projects, by converting those files. There are docs for this: [convert single to multianimal annotation data](https://github.com/DeepLabCut/DeepLabCut/blob/master/docs/convert_maDLC.md)
 
 ### Configure the Project:
 
@@ -314,13 +316,16 @@ are listed in Box 2.
 
 **CRITICAL POINT:** For **create_multianimaltraining_dataset** we already change this such that you will use imgaug, ADAM optimization, and batch training. We suggest these defaults at this time.
 
-**DATA AUGMENTATION:** At this stage you can also decide what type of augmentation to use. The default loaders work well for most all tasks (as shown on www.deeplabcut.org), but there are many options, more data augmentation, intermediate supervision, etc. Please look at the [**pose_cfg.yaml**](https://github.com/AlexEMG/DeepLabCut/blob/master/deeplabcut/pose_cfg.yaml) file for a full list of parameters **you might want to change before running this step.** There are several data loaders that can be used. For example, you can use the default loader (introduced and described in the Nature Protocols paper), [TensorPack](https://github.com/tensorpack/tensorpack) for data augmentation (currently this is easiest on Linux only), or [imgaug](https://imgaug.readthedocs.io/en/latest/). We recommend `imgaug`. You can set this by passing:``` deeplabcut.create_training_dataset(config_path, augmenter_type='imgaug')  ```
+**DATA AUGMENTATION:** At this stage you can also decide what type of augmentation to use. The default loaders work well for most all tasks (as shown on www.deeplabcut.org), but there are many options, more data augmentation, intermediate supervision, etc. Please look at the [**pose_cfg.yaml**](https://github.com/AlexEMG/DeepLabCut/blob/master/deeplabcut/pose_cfg.yaml) file for a full list of parameters **you might want to change before running this step.** There are several data loaders that can be used. For example, you can use the default loader (introduced and described in the Nature Protocols paper), [TensorPack](https://github.com/tensorpack/tensorpack) for data augmentation (currently this is easiest on Linux only), or [imgaug](https://imgaug.readthedocs.io/en/latest/). We recommend `imgaug` (which is default now!). You can set this by passing:``` deeplabcut.create_training_dataset(config_path, augmenter_type='imgaug')  ```
 
 The differences of the loaders are as follows:
 - `default`: our standard DLC 2.0 introduced in Nature Protocols variant (scaling, auto-crop augmentation) *will be renamed to `crop_scale` in a future release!*
 - `imgaug`: a lot of augmentation possibilities, efficient code for target map creation & batch sizes >1 supported. You can set the parameters such as the `batch_size` in the `pose_cfg.yaml` file for the model you are training.
 - `tensorpack`: a lot of augmentation possibilities, multi CPU support for fast processing, target maps are created less efficiently than in imgaug, does not allow batch size>1
 - `deterministic`: only useful for testing, freezes numpy seed; otherwise like default.
+
+Our recent [A Primer on Motion Capture with Deep Learning: Principles, Pitfalls, and Perspectives](https://www.cell.com/neuron/pdf/S0896-6273(20)30717-0.pdf), details the advantage of augmentation for a worked example (see Fig 7). TL;DR: use imgaug and use the symmetries of your data!
+
 
 Alternatively, you can set the loader (as well as other training parameters) in the **pose_cfg.yaml** file of the model that you want to train. Note, to get details on the options, look at the default file: [**pose_cfg.yaml**](https://github.com/AlexEMG/DeepLabCut/blob/master/deeplabcut/pose_cfg.yaml).
 

@@ -66,7 +66,6 @@ def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
         if f.endswith('.h5'):
-            sampleName = f.split('DLC')[0]
             n, e = os.path.splitext(f)
             fullpath=os.path.join(directory, f)
             df = pd.read_hdf(fullpath)

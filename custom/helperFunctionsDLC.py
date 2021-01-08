@@ -401,6 +401,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
     """
     sampleName = csvPath.split('/')[-1].split('DLC')[0]
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
+
     leftCons = consecutive(leftIndex, stepsize=1)
     rightCons = consecutive(rightIndex, stepsize=1)
     df = pd.DataFrame()

@@ -12,6 +12,7 @@ import os
 import shutil
 import cv2
 
+<<<<<<< HEAD
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -35,7 +36,6 @@ def extractPoses(parentDirectory, prefix='VG'):
     None. Creates new folders for each plot type (e.g. trajectory, plot, hist) containing data from all animals.
 
     """
-    
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -62,6 +62,7 @@ def extractPoses(parentDirectory, prefix='VG'):
                 shutil.copyfile(fullpath, targpath)
 
 
+<<<<<<< HEAD
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
@@ -113,13 +114,14 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
-        
+
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)
         return(leftTime, rightTime, leftIndex, rightIndex)
     elif not index:
         return leftTime, rightTime
+
 
 def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save=True):
     """Create new data files for each zone created in calcZoneTimes.
@@ -191,7 +193,6 @@ def extractFrames(vidPath, saveDir):
 
     """
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
-    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -236,7 +237,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     -------
     None.
     """
-    
     sampleName = frameDir.split('/')[-1]
     if sampleName == '':
         sampleName = frameDir.split('/')[-2]
@@ -261,6 +261,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):

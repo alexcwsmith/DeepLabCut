@@ -120,7 +120,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         List of frame indices in left zone.
     rightIndex: list (returned if index=True)
         List of frame indices in right zone.
-
     """
     if csvPath.endswith('.csv'):
         df = pd.read_csv(csvPath, header=[0,1,2], index_col=0)
@@ -217,7 +216,6 @@ def extractFrames(vidPath, saveDir):
 
     """
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
-    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -272,20 +270,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
         os.mkdir(leftDir)
     if not os.path.exists(rightDir):
         os.mkdir(rightDir)
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
-    paths = os.listdir(frameDir)
-    for path in paths:
-        if path.endswith('.jpg'):
-            fullpath = os.path.join(frameDir, path)
-            frame = int(path.strip('.jpg'))
-            if frame in leftIndex:
-                if not os.path.exists(os.path.join(leftDir, path)):
-                    shutil.move(fullpath, leftDir)
-            elif frame in rightIndex:
-                if not os.path.exists(os.path.join(rightDir, path)):
-                    shutil.move(fullpath, rightDir)
-            else:
-                pass
 
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
     paths = os.listdir(frameDir)

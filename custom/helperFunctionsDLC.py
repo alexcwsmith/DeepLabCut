@@ -36,6 +36,8 @@ def extractPoses(parentDirectory, prefix='VG'):
 
     """
     
+def extractPoses(parentDirectory):
+>>>>>>> Uploaded helper functions
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -60,7 +62,6 @@ def extractPoses(parentDirectory, prefix='VG'):
                 f, e = os.path.splitext(fullpath.split('/')[-1])
                 targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
                 shutil.copyfile(fullpath, targpath)
-
 
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
@@ -113,7 +114,7 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
-        
+
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)
@@ -191,7 +192,6 @@ def extractFrames(vidPath, saveDir):
 
     """
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
-    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -237,15 +237,17 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     None.
     """
     
-    sampleName = frameDir.split('/')[-1]
-    if sampleName == '':
-        sampleName = frameDir.split('/')[-2]
-    leftDir = os.path.join(frameDir, 'Left/')
-    rightDir = os.path.join(frameDir, 'Right/')
-    if not os.path.exists(leftDir):
-        os.mkdir(leftDir)
-    if not os.path.exists(rightDir):
-        os.mkdir(rightDir)
+    if vc.isOpened():
+        rval, frame = vc.read()
+    else:
+        rval=False
+    
+    while rval:
+        rval, frame = vc.read()
+        cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
+        c = c+1
+        cv2.waitKey(1)
+    vc.release()
 
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
     paths = os.listdir(frameDir)
@@ -261,6 +263,19 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
+    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    for path in paths:
+        fullpath = os.path.join(frameDir, sampleName + '/' + path)
+        frame = int(path.strip('.jpg'))
+        if frame in leftIndex:
+            if not os.path.exists(os.path.join(leftDir, path)):
+                shutil.move(fullpath, leftDir)
+        elif frame in rightIndex:
+            if not os.path.exists(os.path.join(rightDir, path)):
+                shutil.move(fullpath, rightDir)
+        else:
+            pass
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):
@@ -299,7 +314,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
 def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
-
 
 def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
     """Calculate time spent in each half of arena, split along a given axis.
@@ -352,6 +366,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
     df.columns=['Left Bout Start Frame', 'Left Bout Length', 'Right Bout Start Frame', 'Right Bout Length']
     if saveDir:
         df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
+    df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
     return df    
 
 

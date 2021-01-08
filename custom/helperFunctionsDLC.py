@@ -90,7 +90,7 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', flippedX=True, index
         df = pd.read_hdf(csvPath)
     else:
         raise NameError("Must be either .csv or .h5 file")
-    sx = df[(modelPrefix, 'spine2', 'x')]
+    sx = df[(modelPrefix, bodyPart, axis)]
     middle = (sx.max()+sx.min())/2
     if flippedX:
         left = df.loc[df[modelPrefix, bodyPart, axis]>middle]

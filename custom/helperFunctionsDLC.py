@@ -120,7 +120,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
     elif not index:
         return leftTime, rightTime
 
-
 def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save=True):
     """Create new data files for each zone created in calcZoneTimes.
     
@@ -260,7 +259,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
-
 
     left_img_array = []
     right_img_array = []

@@ -12,6 +12,7 @@ import os
 import shutil
 import cv2
 
+<<<<<<< HEAD
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -36,6 +37,8 @@ def extractPoses(parentDirectory, prefix='VG'):
 
     """
     
+=======
+def extractPoses(parentDirectory):
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -191,7 +194,7 @@ def extractFrames(vidPath, saveDir):
 
     """
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
-    
+
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -237,6 +240,20 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     None.
     """
     
+    if vc.isOpened():
+        rval, frame = vc.read()
+    else:
+        rval=False
+    
+    while rval:
+        rval, frame = vc.read()
+        cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
+        c = c+1
+        cv2.waitKey(1)
+    vc.release()
+
+def makeZoneVideo(csvPath, modelPrefix, frameDir, fps, size, flippedX=True):
+>>>>>>> Uploaded helper functions
     sampleName = frameDir.split('/')[-1]
     if sampleName == '':
         sampleName = frameDir.split('/')[-2]
@@ -335,6 +352,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
 
     sampleName = csvPath.split('/')[-1].split('DLC')[0]
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
+
     leftCons = consecutive(leftIndex, stepsize=1)
     rightCons = consecutive(rightIndex, stepsize=1)
     df = pd.DataFrame()

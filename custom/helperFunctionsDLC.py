@@ -12,7 +12,6 @@ import os
 import shutil
 import cv2
 
-<<<<<<< HEAD
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -62,7 +61,6 @@ def extractPoses(parentDirectory, prefix='VG'):
                 shutil.copyfile(fullpath, targpath)
 
 
-<<<<<<< HEAD
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
@@ -209,6 +207,7 @@ def extractFrames(vidPath, saveDir):
         else:
             break
     vc.release()
+
 
 def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=True):
     """Create new videos containing only frames in each zone.

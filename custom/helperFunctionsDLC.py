@@ -175,7 +175,6 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
 def extractFrames(vidPath, saveDir):
     """Extract all frames from video as .jpg files.
     
-
     Parameters
     ----------
     vidPath : string

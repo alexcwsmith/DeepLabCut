@@ -27,10 +27,6 @@ def h5toCSV(directory):
     Returns
     -------
     None.
-<<<<<<< HEAD
-
-=======
->>>>>>> Resolved merge conflicts
     """
     files = os.listdir(directory)
     for f in files:
@@ -98,10 +94,6 @@ def trimFrames(directory, startFrame=None, stopFrame=None):
             df = df[startFrame:stopFrame]
             df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.csv'), key='df_with_missing')
 
-<<<<<<< HEAD
-=======
-
->>>>>>> Resolved merge conflicts
 def extractPoses(parentDirectory, prefix=''):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
     
@@ -116,6 +108,7 @@ def extractPoses(parentDirectory, prefix=''):
     None. Creates new folders for each plot type (e.g. trajectory, plot, hist) containing data from all animals.
 
     """
+
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -140,7 +133,6 @@ def extractPoses(parentDirectory, prefix=''):
                 f, e = os.path.splitext(fullpath.split('/')[-1])
                 targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
                 shutil.copyfile(fullpath, targpath)
-
 
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
@@ -374,7 +366,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
 def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
-
 
 def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
     """Calculate time spent in each half of arena, split along a given axis.
@@ -736,8 +727,6 @@ def combineDistancesPerGroup(dataFiles, bodyPart, obj):
         for bp in bodyParts:
             df.drop(bp, axis=1, level=1, inplace=True)
         cat = pd.concat([cat, df],axis=0,ignore_index=True)
-<<<<<<< HEAD
-=======
     return(cat)
 
 def compareAndPlotInteractions(directory, group1, group2):
@@ -864,7 +853,6 @@ def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=Non
         return(interactions)
     elif not distThreshold:
         return(distDf)
->>>>>>> Resolved merge conflicts
 
 def calcVelocity(file, bodyParts, directory, window=5):
     """Calculate velocity of bodyParts between given number of frames (window).

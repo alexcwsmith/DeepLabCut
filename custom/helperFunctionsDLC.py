@@ -12,6 +12,7 @@ import os
 import shutil
 import cv2
 
+
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -42,6 +43,7 @@ def extractPoses(parentDirectory, prefix='VG'):
         folders.append(folder)
         
     for fold in folders:
+
         if fold.split('/')[-1].startswith(prefix):
             files = os.listdir(fold)
             sample = fold.split('/')[-1].split('.')[0]
@@ -60,6 +62,7 @@ def extractPoses(parentDirectory, prefix='VG'):
                 targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
                 shutil.copyfile(fullpath, targpath)
 
+<<<<<<< HEAD
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
@@ -231,7 +234,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     -------
     None.
     """
-    
     if vc.isOpened():
         rval, frame = vc.read()
     else:
@@ -239,7 +241,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     
     while rval:
         rval, frame = vc.read()
-        
         if rval:
             cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
             c+=1
@@ -262,20 +263,36 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+        cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
+        c = c+1
+        cv2.waitKey(1)
+    vc.release()
+
+def makeZoneVideo(csvPath, modelPrefix, frameDir, fps, size, flippedX=True):
+    sampleName = frameDir.split('/')[-1]
+    if sampleName == '':
+        sampleName = frameDir.split('/')[-2]
+    leftDir = os.path.join(frameDir, 'Left/')
+    rightDir = os.path.join(frameDir, 'Right/')
+    if not os.path.exists(leftDir):
+        os.mkdir(leftDir)
+    if not os.path.exists(rightDir):
+        os.mkdir(rightDir)
+
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
     paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
     for path in paths:
-        if path.endswith('.jpg'):
-            fullpath = os.path.join(frameDir, path)
-            frame = int(path.strip('.jpg'))
-            if frame in leftIndex:
-                if not os.path.exists(os.path.join(leftDir, path)):
-                    shutil.move(fullpath, leftDir)
-            elif frame in rightIndex:
-                if not os.path.exists(os.path.join(rightDir, path)):
-                    shutil.move(fullpath, rightDir)
-            else:
-                pass
+        fullpath = os.path.join(frameDir, sampleName + '/' + path)
+        frame = int(path.strip('.jpg'))
+        if frame in leftIndex:
+            if not os.path.exists(os.path.join(leftDir, path)):
+                shutil.move(fullpath, leftDir)
+        elif frame in rightIndex:
+            if not os.path.exists(os.path.join(rightDir, path)):
+                shutil.move(fullpath, rightDir)
+        else:
+            pass
+
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):

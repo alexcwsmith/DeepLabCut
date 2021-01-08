@@ -216,6 +216,7 @@ def extractFrames(vidPath, saveDir):
 
     """
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
+
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -270,7 +271,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
         os.mkdir(leftDir)
     if not os.path.exists(rightDir):
         os.mkdir(rightDir)
-
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
     paths = os.listdir(frameDir)
     for path in paths:
@@ -285,6 +285,20 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
+    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    for path in paths:
+        fullpath = os.path.join(frameDir, sampleName + '/' + path)
+        frame = int(path.strip('.jpg'))
+        if frame in leftIndex:
+            if not os.path.exists(os.path.join(leftDir, path)):
+                shutil.move(fullpath, leftDir)
+        elif frame in rightIndex:
+            if not os.path.exists(os.path.join(rightDir, path)):
+                shutil.move(fullpath, rightDir)
+        else:
+            pass
 
     left_img_array = []
     right_img_array = []
@@ -485,5 +499,4 @@ def compareAndPlotInteractions(directory, group1, group2):
     plt.savefig(os.path.join(directory, 'InteractionFrames.png'))
     plt.show()
     return(result)
-
 

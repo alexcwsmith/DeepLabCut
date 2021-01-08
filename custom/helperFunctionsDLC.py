@@ -35,9 +35,6 @@ def extractPoses(parentDirectory, prefix='VG'):
     None. Creates new folders for each plot type (e.g. trajectory, plot, hist) containing data from all animals.
 
     """
-    
-def extractPoses(parentDirectory):
->>>>>>> Uploaded helper functions
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -94,7 +91,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         List of frame indices in left zone.
     rightIndex: list (returned if index=True)
         List of frame indices in right zone.
-
     """
     if csvPath.endswith('.csv'):
         df = pd.read_csv(csvPath, header=[0,1,2], index_col=0)
@@ -191,7 +187,7 @@ def extractFrames(vidPath, saveDir):
     None.
 
     """
-    sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
+    sampleName, ext = os.path.splitext(vidPath.split('/')[-1]
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -244,9 +240,13 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     
     while rval:
         rval, frame = vc.read()
-        cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
-        c = c+1
-        cv2.waitKey(1)
+        
+        if rval:
+            cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
+            c+=1
+            cv2.waitKey(1)
+        else:
+            break
     vc.release()
 
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
@@ -266,16 +266,17 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
     paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
     for path in paths:
-        fullpath = os.path.join(frameDir, sampleName + '/' + path)
-        frame = int(path.strip('.jpg'))
-        if frame in leftIndex:
-            if not os.path.exists(os.path.join(leftDir, path)):
-                shutil.move(fullpath, leftDir)
-        elif frame in rightIndex:
-            if not os.path.exists(os.path.join(rightDir, path)):
-                shutil.move(fullpath, rightDir)
-        else:
-            pass
+        if path.endswith('.jpg'):
+            fullpath = os.path.join(frameDir, path)
+            frame = int(path.strip('.jpg'))
+            if frame in leftIndex:
+                if not os.path.exists(os.path.join(leftDir, path)):
+                    shutil.move(fullpath, leftDir)
+            elif frame in rightIndex:
+                if not os.path.exists(os.path.join(rightDir, path)):
+                    shutil.move(fullpath, rightDir)
+            else:
+                pass
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):
@@ -347,6 +348,39 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
 
     """
 
+<<<<<<< HEAD
+=======
+def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
+    """Calculate time spent in each half of arena, split along a given axis.
+    
+
+    Parameters
+    ----------
+    csvPath : string
+        Path to data file. Can be either .csv or .h5.
+    modelPrefix : string
+        Name of DLC model that is level 0 of multiindex.
+    bodyPart : string
+        Labeled body part to use for calculations. Must be in level 1 of multiindex.
+    axis : string, optional
+        Axis to split into zones ('x' or 'y'). The default is 'x'.
+    saveDir: string, optional
+        Path to directory to save results. If None do not save, only return.
+    flippedX : bool, optional
+        If the video was collected with horizontal mirroring, set True. The default is True.
+
+    Returns
+    -------
+    leftTime : int
+        # of seconds spent in left zone.
+    rightTime : int
+        # of seconds spent in right zone.
+    leftIndex: list (returned if index=True)
+        List of frame indices in left zone.
+    rightIndex: list (returned if index=True)
+        List of frame indices in right zone.
+
+    """
     sampleName = csvPath.split('/')[-1].split('DLC')[0]
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
     leftCons = consecutive(leftIndex, stepsize=1)
@@ -366,7 +400,6 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
     df.columns=['Left Bout Start Frame', 'Left Bout Length', 'Right Bout Start Frame', 'Right Bout Length']
     if saveDir:
         df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
-    df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
     return df    
 
 

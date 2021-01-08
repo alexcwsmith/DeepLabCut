@@ -327,6 +327,19 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
+    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    for path in paths:
+        fullpath = os.path.join(frameDir, sampleName + '/' + path)
+        frame = int(path.strip('.jpg'))
+        if frame in leftIndex:
+            if not os.path.exists(os.path.join(leftDir, path)):
+                shutil.move(fullpath, leftDir)
+        elif frame in rightIndex:
+            if not os.path.exists(os.path.join(rightDir, path)):
+                shutil.move(fullpath, rightDir)
+        else:
+            pass
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):
@@ -417,6 +430,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
     df.columns=['Left Bout Start Frame', 'Left Bout Length', 'Right Bout Start Frame', 'Right Bout Length']
     if saveDir:
         df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
+    df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
     return df    
 
 def calcDistanceMA(h5File, indiv1, indiv2, bodyPart1, bodyPart2, directory=os.getcwd(), distThreshold=5):

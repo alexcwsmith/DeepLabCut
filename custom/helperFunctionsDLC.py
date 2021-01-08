@@ -203,7 +203,7 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
 
 def extractFrames(vidPath, saveDir):
     """Extract all frames from video as .jpg files.
-    
+
     Parameters
     ----------
     vidPath : string
@@ -216,7 +216,8 @@ def extractFrames(vidPath, saveDir):
     None.
 
     """
-    sampleName, ext = os.path.splitext(vidPath.split('/')[-1]
+    sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
+    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -273,8 +274,8 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     if not os.path.exists(rightDir):
         os.mkdir(rightDir)
 
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
-    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
+    paths = os.listdir(frameDir)
     for path in paths:
         fullpath = os.path.join(frameDir, sampleName + '/' + path)
         frame = int(path.strip('.jpg'))
@@ -286,6 +287,18 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                 shutil.move(fullpath, rightDir)
         else:
             pass
+
+        if path.endswith('.jpg'):
+            fullpath = os.path.join(frameDir, path)
+            frame = int(path.strip('.jpg'))
+            if frame in leftIndex:
+                if not os.path.exists(os.path.join(leftDir, path)):
+                    shutil.move(fullpath, leftDir)
+            elif frame in rightIndex:
+                if not os.path.exists(os.path.join(rightDir, path)):
+                    shutil.move(fullpath, rightDir)
+            else:
+                pass
 
     left_img_array = []
     right_img_array = []

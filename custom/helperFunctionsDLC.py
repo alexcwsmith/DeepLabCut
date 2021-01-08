@@ -62,7 +62,6 @@ def extractPoses(parentDirectory, prefix='VG'):
                 targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
                 shutil.copyfile(fullpath, targpath)
 
-<<<<<<< HEAD
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
@@ -175,7 +174,6 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
 
 def extractFrames(vidPath, saveDir):
     """Extract all frames from video as .jpg files.
-    
 
     Parameters
     ----------
@@ -189,7 +187,8 @@ def extractFrames(vidPath, saveDir):
     None.
 
     """
-    sampleName, ext = os.path.splitext(vidPath.split('/')[-1]
+    sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
+    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -206,6 +205,7 @@ def extractFrames(vidPath, saveDir):
         else:
             break
     vc.release()
+
 
 def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=True):
     """Create new videos containing only frames in each zone.
@@ -234,41 +234,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     -------
     None.
     """
-    if vc.isOpened():
-        rval, frame = vc.read()
-    else:
-        rval=False
     
-    while rval:
-        rval, frame = vc.read()
-        if rval:
-            cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
-            c+=1
-            cv2.waitKey(1)
-        else:
-            break
-    vc.release()
-
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
-    paths = os.listdir(frameDir)
-    for path in paths:
-        if path.endswith('.jpg'):
-            fullpath = os.path.join(frameDir, path)
-            frame = int(path.strip('.jpg'))
-            if frame in leftIndex:
-                if not os.path.exists(os.path.join(leftDir, path)):
-                    shutil.move(fullpath, leftDir)
-            elif frame in rightIndex:
-                if not os.path.exists(os.path.join(rightDir, path)):
-                    shutil.move(fullpath, rightDir)
-            else:
-                pass
-        cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
-        c = c+1
-        cv2.waitKey(1)
-    vc.release()
-
-def makeZoneVideo(csvPath, modelPrefix, frameDir, fps, size, flippedX=True):
     sampleName = frameDir.split('/')[-1]
     if sampleName == '':
         sampleName = frameDir.split('/')[-2]
@@ -279,8 +245,8 @@ def makeZoneVideo(csvPath, modelPrefix, frameDir, fps, size, flippedX=True):
     if not os.path.exists(rightDir):
         os.mkdir(rightDir)
 
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
-    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
+    paths = os.listdir(frameDir)
     for path in paths:
         fullpath = os.path.join(frameDir, sampleName + '/' + path)
         frame = int(path.strip('.jpg'))
@@ -292,6 +258,18 @@ def makeZoneVideo(csvPath, modelPrefix, frameDir, fps, size, flippedX=True):
                 shutil.move(fullpath, rightDir)
         else:
             pass
+
+        if path.endswith('.jpg'):
+            fullpath = os.path.join(frameDir, path)
+            frame = int(path.strip('.jpg'))
+            if frame in leftIndex:
+                if not os.path.exists(os.path.join(leftDir, path)):
+                    shutil.move(fullpath, leftDir)
+            elif frame in rightIndex:
+                if not os.path.exists(os.path.join(rightDir, path)):
+                    shutil.move(fullpath, rightDir)
+            else:
+                pass
 
     left_img_array = []
     right_img_array = []

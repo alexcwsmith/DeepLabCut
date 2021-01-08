@@ -12,7 +12,6 @@ import os
 import shutil
 import cv2
 
-<<<<<<< HEAD
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -36,9 +35,6 @@ def extractPoses(parentDirectory, prefix='VG'):
     None. Creates new folders for each plot type (e.g. trajectory, plot, hist) containing data from all animals.
 
     """
-    
-=======
-def extractPoses(parentDirectory):
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -193,8 +189,9 @@ def extractFrames(vidPath, saveDir):
     None.
 
     """
-    sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
 
+    sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
+    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -247,13 +244,44 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     
     while rval:
         rval, frame = vc.read()
-        cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
-        c = c+1
-        cv2.waitKey(1)
+        
+        if rval:
+            cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
+            c+=1
+            cv2.waitKey(1)
+        else:
+            break
     vc.release()
 
-def makeZoneVideo(csvPath, modelPrefix, frameDir, fps, size, flippedX=True):
->>>>>>> Uploaded helper functions
+
+def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=True):
+    """Create new videos containing only frames in each zone.
+    
+
+    Parameters
+    ----------
+    csvPath : string
+        Path to data file. Can be either .csv or .h5.
+    modelPrefix : string
+        Name of DLC model that is level 0 of multiindex.
+    bodyPart : string
+        Labeled body part to use for calculations. Must be in level 1 of multiindex.
+    axis : string, optional
+        Axis to split into zones ('x' or 'y'). The default is 'x'.
+    frameDir: string
+        Path to saved frames.
+    fps: int
+        FPS for result video.
+    size: tuple
+        (width, height) size of video frames (must be same dimensions as original)
+    flippedX : bool, optional
+        If the video was collected with horizontal mirroring, set True. The default is True.
+
+    Returns
+    -------
+    None.
+    """
+    
     sampleName = frameDir.split('/')[-1]
     if sampleName == '':
         sampleName = frameDir.split('/')[-2]

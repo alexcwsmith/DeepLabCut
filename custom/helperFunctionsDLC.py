@@ -12,7 +12,7 @@ import os
 import shutil
 import cv2
 
-<<<<<<< HEAD
+
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -121,7 +121,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
     elif not index:
         return leftTime, rightTime
 
-<<<<<<< HEAD
 def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save=True):
     """Create new data files for each zone created in calcZoneTimes.
     
@@ -247,19 +246,20 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     if not os.path.exists(rightDir):
         os.mkdir(rightDir)
 
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
-    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
+    paths = os.listdir(frameDir)
     for path in paths:
-        fullpath = os.path.join(frameDir, sampleName + '/' + path)
-        frame = int(path.strip('.jpg'))
-        if frame in leftIndex:
-            if not os.path.exists(os.path.join(leftDir, path)):
-                shutil.move(fullpath, leftDir)
-        elif frame in rightIndex:
-            if not os.path.exists(os.path.join(rightDir, path)):
-                shutil.move(fullpath, rightDir)
-        else:
-            pass
+        if path.endswith('.jpg'):
+            fullpath = os.path.join(frameDir, path)
+            frame = int(path.strip('.jpg'))
+            if frame in leftIndex:
+                if not os.path.exists(os.path.join(leftDir, path)):
+                    shutil.move(fullpath, leftDir)
+            elif frame in rightIndex:
+                if not os.path.exists(os.path.join(rightDir, path)):
+                    shutil.move(fullpath, rightDir)
+            else:
+                pass
 
     left_img_array = []
     right_img_array = []

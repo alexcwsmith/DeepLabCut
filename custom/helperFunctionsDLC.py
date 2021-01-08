@@ -12,6 +12,7 @@ import os
 import shutil
 import cv2
 
+
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -195,7 +196,7 @@ def extractFrames(vidPath, saveDir):
         
     vc = cv2.VideoCapture(vidPath)
     c=0
-    
+
     while(True):
         rval, frame = vc.read()
         
@@ -259,6 +260,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+
 
     left_img_array = []
     right_img_array = []
@@ -331,7 +333,6 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
         List of frame indices in right zone.
 
     """
-
     sampleName = csvPath.split('/')[-1].split('DLC')[0]
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
     leftCons = consecutive(leftIndex, stepsize=1)

@@ -112,7 +112,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
-        
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)
@@ -189,9 +188,7 @@ def extractFrames(vidPath, saveDir):
     None.
 
     """
-
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
-    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -209,50 +206,6 @@ def extractFrames(vidPath, saveDir):
             break
     vc.release()
 
-def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=True):
-    """Create new videos containing only frames in each zone.
-    
-
-    Parameters
-    ----------
-    csvPath : string
-        Path to data file. Can be either .csv or .h5.
-    modelPrefix : string
-        Name of DLC model that is level 0 of multiindex.
-    bodyPart : string
-        Labeled body part to use for calculations. Must be in level 1 of multiindex.
-    axis : string, optional
-        Axis to split into zones ('x' or 'y'). The default is 'x'.
-    frameDir: string
-        Path to saved frames.
-    fps: int
-        FPS for result video.
-    size: tuple
-        (width, height) size of video frames (must be same dimensions as original)
-    flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
-
-    Returns
-    -------
-    None.
-    """
-    
-    if vc.isOpened():
-        rval, frame = vc.read()
-    else:
-        rval=False
-    
-    while rval:
-        rval, frame = vc.read()
-        
-        if rval:
-            cv2.imwrite(os.path.join(saveDir, sampleName + '/' + str(c) + '.jpg'), frame)
-            c+=1
-            cv2.waitKey(1)
-        else:
-            break
-    vc.release()
-
 
 def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=True):
     """Create new videos containing only frames in each zone.
@@ -281,7 +234,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     -------
     None.
     """
-    
     sampleName = frameDir.split('/')[-1]
     if sampleName == '':
         sampleName = frameDir.split('/')[-2]
@@ -306,6 +258,21 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
+    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    for path in paths:
+        fullpath = os.path.join(frameDir, sampleName + '/' + path)
+        frame = int(path.strip('.jpg'))
+        if frame in leftIndex:
+            if not os.path.exists(os.path.join(leftDir, path)):
+                shutil.move(fullpath, leftDir)
+        elif frame in rightIndex:
+            if not os.path.exists(os.path.join(rightDir, path)):
+                shutil.move(fullpath, rightDir)
+        else:
+            pass
+
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):
@@ -380,7 +347,6 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
 
     sampleName = csvPath.split('/')[-1].split('DLC')[0]
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
-
     leftCons = consecutive(leftIndex, stepsize=1)
     rightCons = consecutive(rightIndex, stepsize=1)
     df = pd.DataFrame()

@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 
 
 
+
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -149,6 +150,7 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
     elif not index:
         return leftTime, rightTime
 
+<<<<<<< HEAD
 def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save=True):
     """Create new data files for each zone created in calcZoneTimes.
     
@@ -218,7 +220,6 @@ def extractFrames(vidPath, saveDir):
 
     """
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
-    
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
@@ -275,8 +276,8 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     if not os.path.exists(rightDir):
         os.mkdir(rightDir)
 
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
-    paths = os.listdir(frameDir)
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
+    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
     for path in paths:
         fullpath = os.path.join(frameDir, sampleName + '/' + path)
         frame = int(path.strip('.jpg'))
@@ -289,6 +290,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
         else:
             pass
 
+<<<<<<< HEAD
         if path.endswith('.jpg'):
             fullpath = os.path.join(frameDir, path)
             frame = int(path.strip('.jpg'))
@@ -301,6 +303,8 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
             else:
                 pass
 
+=======
+>>>>>>> Uploaded helper functions
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):

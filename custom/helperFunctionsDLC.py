@@ -11,9 +11,14 @@ import pandas as pd
 import os
 import shutil
 import cv2
+<<<<<<< HEAD
 from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
+=======
+
+
+>>>>>>> Added docstrings
 
 def h5toCSV(directory):
     files = os.listdir(directory)
@@ -268,8 +273,8 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     if not os.path.exists(rightDir):
         os.mkdir(rightDir)
 
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
-    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
+    paths = os.listdir(frameDir)
     for path in paths:
         if path.endswith('.jpg'):
             fullpath = os.path.join(frameDir, path)

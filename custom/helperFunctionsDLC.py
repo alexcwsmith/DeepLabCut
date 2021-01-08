@@ -286,6 +286,19 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
             else:
                 pass
 
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, flippedX=flippedX, index=True)
+    paths = os.listdir(os.path.join(frameDir, sampleName + '/'))
+    for path in paths:
+        fullpath = os.path.join(frameDir, sampleName + '/' + path)
+        frame = int(path.strip('.jpg'))
+        if frame in leftIndex:
+            if not os.path.exists(os.path.join(leftDir, path)):
+                shutil.move(fullpath, leftDir)
+        elif frame in rightIndex:
+            if not os.path.exists(os.path.join(rightDir, path)):
+                shutil.move(fullpath, rightDir)
+        else:
+            pass
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):

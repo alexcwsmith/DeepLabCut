@@ -108,7 +108,6 @@ def extractPoses(parentDirectory, prefix=''):
     None. Creates new folders for each plot type (e.g. trajectory, plot, hist) containing data from all animals.
 
     """
-
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -396,6 +395,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
         List of frame indices in left zone.
     rightIndex: list (returned if index=True)
         List of frame indices in right zone.
+
 
     """
     sampleName = csvPath.split('/')[-1].split('DLC')[0]

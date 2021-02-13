@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from custom import customAuxiliaryFunctions as caux
 
 
+
 def h5toCSV(directory):
     """Convert all .h5 files in directory to .csvs.
     
@@ -116,7 +117,6 @@ def extractPoses(parentDirectory, prefix=''):
         folders.append(folder)
         
     for fold in folders:
-
         if fold.split('/')[-1].startswith(prefix):
             files = os.listdir(fold)
             sample = fold.split('/')[-1].split('.')[0]
@@ -185,6 +185,7 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
+
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)

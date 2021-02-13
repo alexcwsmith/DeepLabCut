@@ -110,7 +110,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
-
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)
@@ -316,40 +315,6 @@ def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
-def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
-    """Calculate time spent in each half of arena, split along a given axis.
-    
-
-    Parameters
-    ----------
-    csvPath : string
-        Path to data file. Can be either .csv or .h5.
-    modelPrefix : string
-        Name of DLC model that is level 0 of multiindex.
-    bodyPart : string
-        Labeled body part to use for calculations. Must be in level 1 of multiindex.
-    axis : string, optional
-        Axis to split into zones ('x' or 'y'). The default is 'x'.
-    saveDir: string, optional
-        Path to directory to save results. If None do not save, only return.
-    flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
-
-    Returns
-    -------
-    leftTime : int
-        # of seconds spent in left zone.
-    rightTime : int
-        # of seconds spent in right zone.
-    leftIndex: list (returned if index=True)
-        List of frame indices in left zone.
-    rightIndex: list (returned if index=True)
-        List of frame indices in right zone.
-
-    """
-
-<<<<<<< HEAD
-=======
 def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
     """Calculate time spent in each half of arena, split along a given axis.
     

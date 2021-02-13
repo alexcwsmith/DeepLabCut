@@ -112,7 +112,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
-
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)

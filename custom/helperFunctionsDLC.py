@@ -49,6 +49,7 @@ def trimCSVs(frames, directory):
             df = df[:frames+2]
             df.to_csv(os.path.join(saveDir, sampleName + '_trimmed.csv'))
 
+
 def extractPoses(parentDirectory, prefix='VG'):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
     

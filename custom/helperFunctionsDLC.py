@@ -12,7 +12,16 @@ import os
 import shutil
 import cv2
 
-def extractPoses(parentDirectory):
+def h5toCSV(directory):
+    files = os.listdir(directory)
+    for f in files:
+        if f.endswith('.h5'):
+            n, e = os.path.splitext(f)
+            fullpath=os.path.join(directory, f)
+            df = pd.read_hdf(fullpath)
+            df.to_csv(os.path.join(directory, n + '.csv'))
+
+def extractPoses(parentDirectory, prefix='VG'):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
     
 
@@ -34,7 +43,7 @@ def extractPoses(parentDirectory):
         folders.append(folder)
         
     for fold in folders:
-        if fold.split('/')[-1].startswith('VG'):
+        if fold.split('/')[-1].startswith(prefix):
             files = os.listdir(fold)
             sample = fold.split('/')[-1].split('.')[0]
             basepath=fold.split('/')[:-1]
@@ -53,7 +62,7 @@ def extractPoses(parentDirectory):
                 shutil.copyfile(fullpath, targpath)
 
 
-def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', flippedX=True, index=False):
+def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
 
@@ -67,6 +76,8 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', flippedX=True, index
         Labeled body part to use for calculations. Must be in level 1 of multiindex.
     axis : string, optional
         Axis to split into zones ('x' or 'y'). The default is 'x'.
+    fps : int/float, optional
+        FPS of the video, for time calculations. Default 30.0.
     flippedX : bool, optional
         If the video was collected with horizontal mirroring, set True. The default is True.
     index : bool, optional
@@ -94,14 +105,14 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', flippedX=True, index
     middle = (sx.max()+sx.min())/2
     if flippedX:
         left = df.loc[df[modelPrefix, bodyPart, axis]>middle]
-        leftTime = left.shape[0]/30
+        leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]<middle]
-        rightTime = right.shape[0]/30
+        rightTime = right.shape[0]/fps
     elif not flippedX:
         left = df.loc[df[modelPrefix, bodyPart, axis]<middle]
-        leftTime = left.shape[0]/30
+        leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
-        rightTime = right.shape[0]/30
+        rightTime = right.shape[0]/fps
         
     if index:
         leftIndex = list(left.index)

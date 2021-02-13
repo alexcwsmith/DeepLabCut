@@ -325,7 +325,6 @@ def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
-
 def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
     """Calculate time spent in each half of arena, split along a given axis.
     

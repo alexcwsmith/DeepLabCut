@@ -12,7 +12,10 @@ import os
 import shutil
 import cv2
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 34f54138340849475a904c5216bb6ba9604ede5a
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:
@@ -36,6 +39,10 @@ def extractPoses(parentDirectory, prefix='VG'):
     None. Creates new folders for each plot type (e.g. trajectory, plot, hist) containing data from all animals.
 
     """
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 34f54138340849475a904c5216bb6ba9604ede5a
     paths = os.listdir(parentDirectory)
     folders=[]
     for path in paths:
@@ -191,12 +198,20 @@ def extractFrames(vidPath, saveDir):
 
     """
     sampleName, ext = os.path.splitext(vidPath.split('/')[-1])
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 34f54138340849475a904c5216bb6ba9604ede5a
     if not os.path.exists(os.path.join(saveDir, sampleName + '/')):
         os.mkdir(os.path.join(saveDir, sampleName))
         
     vc = cv2.VideoCapture(vidPath)
     c=0
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 34f54138340849475a904c5216bb6ba9604ede5a
     while(True):
         rval, frame = vc.read()
         
@@ -260,7 +275,10 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
                     shutil.move(fullpath, rightDir)
             else:
                 pass
+<<<<<<< HEAD
 
+=======
+>>>>>>> 34f54138340849475a904c5216bb6ba9604ede5a
     left_img_array = []
     right_img_array = []
     if not os.path.exists(os.path.join(frameDir, sampleName + '_LeftZone.mp4')):

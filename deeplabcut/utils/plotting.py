@@ -228,6 +228,7 @@ def plot_trajectories(
     linewidth: float, default 1.0
         Specifies width of line for line and histogram plots.
 
+<<<<<<< HEAD
     imagetype: string, default ".png"
         Specifies the output image format, tested '.tif', '.jpg', '.svg' and ".png". 
 
@@ -237,6 +238,8 @@ def plot_trajectories(
     linewidth: float, default 1.0
         Specifies width of line for line and histogram plots.
 
+=======
+>>>>>>> 34f54138340849475a904c5216bb6ba9604ede5a
     Example
     --------
     for labeling the frames

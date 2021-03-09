@@ -11,14 +11,9 @@ import pandas as pd
 import os
 import shutil
 import cv2
-<<<<<<< HEAD
 from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
-=======
-
-
->>>>>>> Added docstrings
 
 def h5toCSV(directory):
     files = os.listdir(directory)
@@ -52,7 +47,6 @@ def trimCSVs(frames, directory):
             df = pd.read_csv(fullpath, index_col=0)
             df = df[:frames+2]
             df.to_csv(os.path.join(saveDir, sampleName + '_trimmed.csv'))
-
 
 def extractPoses(parentDirectory, prefix='VG'):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
@@ -486,4 +480,5 @@ def compareAndPlotInteractions(directory, group1, group2):
     plt.savefig(os.path.join(directory, 'InteractionFrames.png'))
     plt.show()
     return(result)
+
 

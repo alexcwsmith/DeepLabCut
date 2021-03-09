@@ -16,8 +16,6 @@ from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
 
 
-
-
 def h5toCSV(directory):
     files = os.listdir(directory)
     for f in files:

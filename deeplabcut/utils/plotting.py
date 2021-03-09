@@ -227,33 +227,6 @@ def plot_trajectories(
     linewidth: float, default 1.0
         Specifies width of line for line and histogram plots.
 
-    imagetype: string, default ".png"
-        Specifies the output image format, tested '.tif', '.jpg', '.svg' and ".png". 
-
-    resolution: int, default 100
-        Specifies the resolution (in dpi) of saved figures. Note higher resolution figures take longer to generate.
-
-    linewidth: float, default 1.0
-        Specifies width of line for line and histogram plots.
-
-    imagetype: string, default ".png"
-        Specifies the output image format, tested '.tif', '.jpg', '.svg' and ".png". 
-
-    resolution: int, default 100
-        Specifies the resolution (in dpi) of saved figures. Note higher resolution figures take longer to generate.
-
-    linewidth: float, default 1.0
-        Specifies width of line for line and histogram plots.
-
-    imagetype: string, default ".png"
-        Specifies the output image format, tested '.tif', '.jpg', '.svg' and ".png". 
-
-    resolution: int, default 100
-        Specifies the resolution (in dpi) of saved figures. Note higher resolution figures take longer to generate.
-
-    linewidth: float, default 1.0
-        Specifies width of line for line and histogram plots.
-
     Example
     --------
     for labeling the frames

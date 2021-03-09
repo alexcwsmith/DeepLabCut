@@ -88,6 +88,7 @@ def extractPoses(parentDirectory, prefix='VG'):
                 targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
                 shutil.copyfile(fullpath, targpath)
 
+
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
@@ -138,7 +139,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
-
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)
@@ -324,6 +324,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
 def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
+
 
 def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
     """Calculate time spent in each half of arena, split along a given axis.

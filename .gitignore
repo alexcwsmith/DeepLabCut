@@ -8,6 +8,7 @@
 .local
 .DS_Store
 examples/.DS_Store
+examples/*
 
 # Tensorflow checkpoints
 *.ckpt

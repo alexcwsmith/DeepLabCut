@@ -1,10 +1,11 @@
 #Data and examples
-/examples/open*
-/examples/Reac*
-/examples/TES*
-/examples/multi*
-/examples/3D*
-/examples/OUT
+examples/open*
+examples/Reac*
+examples/TES*
+examples/multi*
+examples/3D*
+examples/OUT
+examples/*
 .local
 
 # Tensorflow checkpoints

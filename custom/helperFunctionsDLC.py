@@ -16,8 +16,6 @@ from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
 from custom import customAuxiliaryFunctions as caux
 
-
-
 def h5toCSV(directory):
     """Convert all .h5 files in directory to .csvs.
     

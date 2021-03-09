@@ -469,7 +469,6 @@ def calcDistanceMA(h5File, indiv1, indiv2, bodyPart1, bodyPart2, directory=os.ge
     interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
     return(interactions)
 
-
 def compareAndPlotInteractions(directory, group1, group2):
     """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.
 
@@ -891,4 +890,5 @@ def calcVelocity(file, bodyParts, directory, window=5):
     cat.index=frames
     cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
     return(cat)
+
 

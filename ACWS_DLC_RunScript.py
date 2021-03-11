@@ -14,7 +14,7 @@ print("Imported DLC version " + str(dlc.__version__))
 import custom.helperFunctionsDLC as hf
 import pathlib
 import pandas as pd
-os.chdir('/d1/studies/Richard/')
+os.chdir('/home/howelab/')
 %matplotlib inline
 
 

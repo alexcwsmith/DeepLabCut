@@ -45,7 +45,7 @@ def trimCSVs(frames, directory):
         if f.endswith('.csv'):
             sampleName = f.split('DLC')[0]
             fullpath = os.path.join(directory, f)
-            df = pd.read_csv(fullpath, index_col=0)
+            df = pd.read_csv(fullpath, header = [0,1,2], index_col=0)
             df = df[:frames+2]
             df.to_csv(os.path.join(saveDir, sampleName + '_trimmed.csv'))
 
@@ -487,4 +487,103 @@ def compareAndPlotInteractions(directory, group1, group2):
     plt.show()
     return(result)
 
+def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=None, distThreshold=None, stationary=False):
+    """Calculate the distance between a labaled bodyPart and an object in single-animal DLC,
+    and optionally calculate # of frames bodyPart is interacting with object.
 
+    Parameters
+    ----------
+    file : string
+        Path to h5 or csv file containing tracking data.
+    bodyPart : string
+        Body part to calculate distance from.
+    obj : string
+        Name of labeled object.
+    directory : string (optional)
+        Directory to save to. Default current working directory.
+    pcutoff : float
+        Likelihood threshold, frames below this will be interpolated.
+    distThreshold : int/float (optional)
+        Pixel distance threshold to be considered interacting. The default is None (no interaction will be calculated).
+    stationary : bool
+        If the object is stationary, pass True and the average detected coordinate will be used rather than per-frame coordinate.
+    Returns
+    -------
+    Pandas dataframe of distances (optionally also interactions).
+
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    if pcutoff:
+        df.loc[df[(scorerName, bodyPart, 'likelihood')] < pcutoff, (scorerName, bodyPart, 'x')]=None
+        df.loc[df[(scorerName, bodyPart, 'likelihood')] < pcutoff, (scorerName, bodyPart, 'y')]=None        
+    bp1x = df[(scorerName, bodyPart, 'x')]
+    bp1x.interpolate(method='linear', inplace=True)
+    bp1y = df[(scorerName, bodyPart, 'y')]
+    bp1y.interpolate(method='linear', inplace=True)
+    objx = df[(scorerName, obj, 'x')]
+    objx.interpolate(method='linear', inplace=True)
+    objy = df[(scorerName, obj, 'y')]
+    objy.interpolate(method='linear', inplace=True)
+    objcoords = list(zip(objx.tolist(), objy.tolist()))
+    bp1coords = list(zip(bp1x.tolist(), bp1y.tolist()))
+    if stationary:
+        objx=np.mean(objx)
+        objy=np.mean(objy)
+        objcoords=(objx, objy)
+    dists = []
+    for i in range(len(bp1coords)):
+        if not stationary:
+            d = np.linalg.norm(np.array(bp1coords[i])-np.array(objcoords[i]))
+            dists.append(d)
+        elif stationary:
+            d = np.linalg.norm(np.array(bp1coords[i])-np.array(objcoords))
+            dists.append(d)
+    distDf = pd.DataFrame([bp1coords,objcoords,dists]).T
+    distDf.columns=[bodyPart, obj, 'Distance']
+    distDf.to_csv(os.path.join(directory, sampleName + '_EuclideanDistances.csv'))
+    if distThreshold:
+        interactions = distDf.loc[distDf['Distance']<distThreshold]
+        interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
+        return(interactions)
+    elif not distThreshold:
+        return(distDf)
+
+def calcVelocity(file, bodyParts, directory, window=5):
+    """Calculate velocity of bodyParts across given number of frames (window).
+    
+    Parameters
+    ----------
+    file : string
+        Path to .h5 or .csv file with data.
+    bodyParts : list or array
+        Labeled parts to calculate velocity of
+    window : int (optional, default 5)
+        Size of window to calculate velocity across.
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    cat = pd.DataFrame()
+    for bp in bodyParts:
+        velocities = []
+        frames = []
+        bpx = df[(scorerName, bp, 'x')].tolist()
+        bpy = df[(scorerName, bp, 'y')].tolist()
+        lz = list(zip(bpx, bpy))
+        for i in range(window, len(lz), window):
+            velo = np.linalg.norm(np.array(lz[i])-np.array(lz[i-window]))
+            velocities.append(velo)
+            frames.append(i)
+        cat[bp]=velocities
+    cat['average']=cat.mean(axis=1)
+    cat.index=frames
+    cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
+    return(cat)

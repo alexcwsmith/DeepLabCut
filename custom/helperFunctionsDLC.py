@@ -891,4 +891,37 @@ def calcVelocity(file, bodyParts, directory, window=5):
     cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
     return(cat)
 
-
+def calcVelocity(file, bodyParts, directory, window=5):
+    """Calculate velocity of bodyParts across given number of frames (window).
+    
+    Parameters
+    ----------
+    file : string
+        Path to .h5 or .csv file with data.
+    bodyParts : list or array
+        Labeled parts to calculate velocity of
+    window : int (optional, default 5)
+        Size of window to calculate velocity across.
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    cat = pd.DataFrame()
+    for bp in bodyParts:
+        velocities = []
+        frames = []
+        bpx = df[(scorerName, bp, 'x')].tolist()
+        bpy = df[(scorerName, bp, 'y')].tolist()
+        lz = list(zip(bpx, bpy))
+        for i in range(window, len(lz), window):
+            velo = np.linalg.norm(np.array(lz[i])-np.array(lz[i-window]))
+            velocities.append(velo)
+            frames.append(i)
+        cat[bp]=velocities
+    cat['average']=cat.mean(axis=1)
+    cat.index=frames
+    cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
+    return(cat)

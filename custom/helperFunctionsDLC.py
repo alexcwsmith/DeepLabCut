@@ -17,6 +17,18 @@ import matplotlib.pyplot as plt
 
 
 def h5toCSV(directory):
+    """Convert all .h5 files in directory to .csvs.
+    
+    Parameters
+    ----------
+    directory : string
+        Directory containing .h5 files.
+
+    Returns
+    -------
+    None.
+
+    """
     files = os.listdir(directory)
     for f in files:
         if f.endswith('.h5'):
@@ -26,28 +38,62 @@ def h5toCSV(directory):
             df.to_csv(os.path.join(directory, n + '.csv'))
 
 def interpolateValues(file, pcutoff):
-    df = pd.read_csv(file, index_col=0, skiprows=[0], header=[0,1])    
-    bodyparts = set(df.columns[x][0] for x in range(len(df.columns)))
+    """Interpolate values with low prediction confidence (i.e. low likelihood).
+    
+    Parameters
+    ----------
+    file : string
+        Path to CSV or h5 file to interpolate.
+    
+    Returns
+    -------
+    Interpolated dataframe.
+    """
+    if file.endswith('.csv'):
+        df = pd.read_csv(file, index_col=0, header=[0,1,2])  
+    elif file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    scorerName = df.columns[0][0]
+    bodyparts = set(df.columns[x][1] for x in range(len(df.columns)))
     for bp in bodyparts:
-        df.loc[df[bp, 'likelihood'] < pcutoff, (bp, 'x')]=None
-        df.loc[df[bp, 'likelihood'] < pcutoff, (bp, 'y')]=None
+        df.loc[df[(scorerName, bp, 'likelihood')] < pcutoff, (scorerName, bp, 'x')]=None
+        df.loc[df[(scorerName, bp, 'likelihood')] < pcutoff, (scorerName, bp, 'y')]=None
+    filename, ext = os.path.splitext(file)
     df = df.interpolate(method='linear')
     df = df.dropna(how='any', axis=0)
-    filename = file.strip('.csv')
     df.to_csv(filename + '_interpolated.csv')
     df.to_hdf(filename + '_interpolated.h5', key='df_with_missing')
     return(df)
 
-def trimCSVs(frames, directory):
+def trimFrames(directory, startFrame=None, stopFrame=None):
+    """Crop csv or data files within specific frames. Good for removing unuseful frames from beginning, end, or both.
+    
+    Parameters
+    ----------
+    directory : string
+        Path to directory containing data files to process.
+    startFrame : int (optional, default None)
+        Starting frame for trimmed data.
+    stopFrame : int (optional, default None)
+        Ending frame for trimmed data.
+    """
     files = os.listdir(directory)
-    saveDir = os.path.join(directory, 'trimmedCSVs/')
+    saveDir = os.path.join(directory, 'trimmedData/')
+    if not os.path.exist(saveDir):
+        os.mkdir(saveDir)
     for f in files:
         if f.endswith('.csv'):
             sampleName = f.split('DLC')[0]
             fullpath = os.path.join(directory, f)
             df = pd.read_csv(fullpath, header = [0,1,2], index_col=0)
-            df = df[:frames+2]
+            df = df[startFrame:stopFrame]
             df.to_csv(os.path.join(saveDir, sampleName + '_trimmed.csv'))
+        elif f.endswith('.h5'):
+            sampleName = f.split('DLC')[0]
+            fullpath = os.path.join(directory, f)
+            df = pd.read_hdf(fullpath)
+            df = df[startFrame:stopFrame]
+            df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.csv'), key='df_with_missing')
 
 
 def extractPoses(parentDirectory, prefix='VG'):
@@ -554,14 +600,16 @@ def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=Non
         return(distDf)
 
 def calcVelocity(file, bodyParts, directory, window=5):
-    """Calculate velocity of bodyParts across given number of frames (window).
+    """Calculate velocity of bodyParts between given number of frames (window).
     
     Parameters
     ----------
     file : string
         Path to .h5 or .csv file with data.
     bodyParts : list or array
-        Labeled parts to calculate velocity of
+        Labeled parts to calculate velocity of.
+    directory : string
+        Directory to save result.
     window : int (optional, default 5)
         Size of window to calculate velocity across.
     """

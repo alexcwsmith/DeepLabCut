@@ -25,6 +25,7 @@ import pandas as pd
 import tensorflow as tf
 from skimage.util import img_as_ubyte
 from tqdm import tqdm
+from numba import cuda
 
 from deeplabcut.pose_estimation_tensorflow.config import load_config
 from deeplabcut.pose_estimation_tensorflow.lib import inferenceutils, trackingutils
@@ -348,9 +349,9 @@ def analyze_videos(
             print(
                 "If the tracking is not satisfactory for some videos, consider expanding the training set. You can use the function 'extract_outlier_frames' to extract a few representative outlier frames."
             )
-        return (
-            DLCscorer
-        )  # note: this is either DLCscorer or DLCscorerlegacy depending on what was used!
+
+        cuda.close()
+        return DLCscorer  # note: this is either DLCscorer or DLCscorerlegacy depending on what was used!
     else:
         print("No video(s) were found. Please check your paths and/or 'video_type'.")
         return DLCscorer

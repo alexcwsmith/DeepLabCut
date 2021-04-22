@@ -12,6 +12,12 @@ Licensed under GNU Lesser General Public License v3.0
 import argparse
 import os
 from pathlib import Path
+<<<<<<< HEAD:deeplabcut/pose_estimation_tensorflow/core/evaluate.py
+=======
+from numba import cuda
+
+# Dependencies for anaysis
+>>>>>>> Release GPU memory after task completion with numba.cuda:deeplabcut/pose_estimation_tensorflow/evaluate.py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm

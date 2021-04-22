@@ -27,6 +27,7 @@ import tensorflow as tf
 from scipy.optimize import linear_sum_assignment
 from skimage.util import img_as_ubyte
 from tqdm import tqdm
+from numba import cuda
 
 from deeplabcut.pose_estimation_tensorflow.config import load_config
 from deeplabcut.pose_estimation_tensorflow.core import predict
@@ -339,6 +340,7 @@ def analyze_videos(
         if term_gpu:
             from numba import cuda
             cuda.close()
+
         return DLCscorer  # note: this is either DLCscorer or DLCscorerlegacy depending on what was used!
     else:
         print("No video(s) were found. Please check your paths and/or 'video_type'.")

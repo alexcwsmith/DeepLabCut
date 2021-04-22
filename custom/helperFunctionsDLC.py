@@ -14,6 +14,7 @@ import cv2
 from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
+from custom import customAuxiliaryFunctions as caux
 
 
 def h5toCSV(directory):
@@ -27,7 +28,6 @@ def h5toCSV(directory):
     Returns
     -------
     None.
-
     """
     files = os.listdir(directory)
     for f in files:
@@ -96,7 +96,7 @@ def trimFrames(directory, startFrame=None, stopFrame=None):
             df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.csv'), key='df_with_missing')
 
 
-def extractPoses(parentDirectory, prefix='VG'):
+def extractPoses(parentDirectory, prefix=''):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
     
 
@@ -134,6 +134,7 @@ def extractPoses(parentDirectory, prefix='VG'):
                 f, e = os.path.splitext(fullpath.split('/')[-1])
                 targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
                 shutil.copyfile(fullpath, targpath)
+
 
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
@@ -185,7 +186,6 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         leftTime = left.shape[0]/fps
         right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
         rightTime = right.shape[0]/fps
-
     if index:
         leftIndex = list(left.index)
         rightIndex = list(right.index)
@@ -556,7 +556,6 @@ def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=Non
     Returns
     -------
     Pandas dataframe of distances (optionally also interactions).
-
     """
     if file.endswith('.h5'):
         df = pd.read_hdf(file)
@@ -592,12 +591,149 @@ def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=Non
     distDf = pd.DataFrame([bp1coords,objcoords,dists]).T
     distDf.columns=[bodyPart, obj, 'Distance']
     distDf.to_csv(os.path.join(directory, sampleName + '_EuclideanDistances.csv'))
+    distDf.to_hdf(os.path.join(directory, sampleName + '_EuclideanDistances.h5'), key='df_with_missing')
     if distThreshold:
         interactions = distDf.loc[distDf['Distance']<distThreshold]
         interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
+        interactions.to_hdf(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.h5'))
         return(interactions)
     elif not distThreshold:
         return(distDf)
+
+def calcVelocity(file, bodyParts, directory, window=5):
+    """Calculate velocity of bodyParts between given number of frames (window).
+    
+    Parameters
+    ----------
+    file : string
+        Path to .h5 or .csv file with data.
+    bodyParts : list or array
+        Labeled parts to calculate velocity of.
+    directory : string
+        Directory to save result.
+    window : int (optional, default 5)
+        Size of window to calculate velocity across.
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    cat = pd.DataFrame()
+    for bp in bodyParts:
+        velocities = []
+        frames = []
+        bpx = df[(scorerName, bp, 'x')].tolist()
+        bpy = df[(scorerName, bp, 'y')].tolist()
+        lz = list(zip(bpx, bpy))
+        for i in range(window, len(lz), window):
+            velo = np.linalg.norm(np.array(lz[i])-np.array(lz[i-window]))
+            velocities.append(velo)
+            frames.append(i)
+        cat[bp]=velocities
+    cat['average']=cat.mean(axis=1)
+    cat.index=frames
+    cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
+    return(cat)
+
+
+def makeObjectStationary(directory, objectName, dtype='.h5', pcutoff=0.5, file=None):
+    """If a stationary object is in the video, alter result data files to reflect it's mean position.
+    
+    Parameters
+    ----------
+    directory : str
+        Path to directory where data files are kept.
+    objectName : str
+        Label of stationary object.
+    dtype : str (optional, default .h5)
+        Type of data file to load, can be '.h5' or '.csv'
+    pcutoff : float, (optional, default 0.5)
+        Cutoff for likelihood, frames below this will be dropped to nan.
+    file : str (optional, default None)
+        Path to single file to process, otherwise all files matching dtype in directory will be processed.
+    """
+    files = []
+    if not file:
+        allFiles = os.listdir(directory)
+        for f in allFiles:
+            if f.endswith(dtype):
+                files.append(f)
+    elif file:
+        files = file
+        if len(files.split('/'))>1:
+            files = [os.path.basename(files)]
+    for file in files:
+        n, e = os.path.splitext(file)
+        fullpath = os.path.join(directory, file)
+        if fullpath.endswith('.h5'):
+            df = pd.read_hdf(fullpath)
+        elif fullpath.endswith('.csv'):
+            df = pd.read_csv(fullpath, header=[0,1,2], index_col=0)
+        scorerName = df.columns[0][0]
+        df.loc[df[(scorerName, objectName, 'likelihood')]<pcutoff]=np.nan
+        meanX = df[(scorerName, objectName, 'x')].mean()
+        meanY = df[(scorerName, objectName, 'y')].mean()
+        df[(scorerName, objectName, 'x')]=meanX
+        df[(scorerName, objectName, 'y')]=meanY
+        df[(scorerName, objectName, 'likelihood')]=1.0
+        if dtype=='.h5':
+            df.to_hdf(os.path.join(directory, n + '_stationary'+objectName+e), key='df_with_missing')
+        elif dtype=='.csv':
+            df.to_csv(os.path.join(directory, n + '_stationary'+objectName+e))
+
+def alignToObject(h5Path, obj):
+    """Set object position to 0,0 for all frames, and create data file with all other bodyparts coordinate distance from object.
+    
+    Parameters
+    ----------
+    h5Path : string
+        Path to .h5 file.
+    obj : string
+        Object label to align to.
+    """
+    directory = '/'.join(h5Path.split('/')[:-1])
+    fileName = h5Path.split('/')[-1]#.split('DLC')[0]
+    f, e = os.path.splitext(fileName)
+    df = pd.read_hdf(h5Path)
+    cols = df.columns
+    scorerName=cols[0][0]
+    bodyParts = []
+    for col in cols:
+        bp = col[1]
+        bodyParts.append(bp)
+    bodyParts = list(set(bodyParts)) #remove duplicates
+    df_ego = df
+    bodyParts_norm = bodyParts
+    bodyParts_norm.remove(obj)
+    for bp in bodyParts_norm: #normalize bodyparts by subtracting one from all 
+        df_ego[(scorerName, bp, 'x')] = df_ego[(scorerName, bp, 'x')] - df_ego[(scorerName, obj, 'x')] #for x position
+        df_ego[(scorerName, bp, 'y')] = df_ego[(scorerName, bp, 'y')] - df_ego[(scorerName, obj, 'y')] #for y position
+    df_ego[(scorerName, obj, 'x')]=0
+    df_ego[(scorerName, obj, 'y')]=0
+    if not os.path.exists(os.path.join(directory, 'alignedTo'+obj+'/')):
+        os.mkdir(os.path.join(directory, 'alignedTo'+obj+'/'))
+    df_ego.to_hdf(os.path.join(directory, 'alignedTo'+obj+'/' + f + '_alignedTo'+obj+'.h5'), key='df_with_missing')
+
+def combineDistancesPerGroup(dataFiles, bodyPart, obj):
+    f0 = pd.read_hdf(dataFiles[0])
+    cols = f0.columns
+    bodyParts = []
+    cat = pd.DataFrame()
+    for col in cols:
+        bp = col[1]
+        bodyParts.append(bp)
+    bodyParts = list(set(bodyParts))
+    bodyParts.remove(bodyPart)
+    for i in range(len(dataFiles)):
+        df = pd.read_hdf(dataFiles[i])
+        df.drop(obj, axis=1, level=1, inplace=True)
+        for bp in bodyParts:
+            df.drop(bp, axis=1, level=1, inplace=True)
+        cat = pd.concat([cat, df],axis=0,ignore_index=True)
+    return(cat)
+
 
 def calcVelocity(file, bodyParts, directory, window=5):
     """Calculate velocity of bodyParts between given number of frames (window).

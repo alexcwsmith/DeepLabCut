@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-
+from numba import cuda
 
 def pairwisedistances(DataCombined, scorer1, scorer2, pcutoff=-1, bodyparts=None):
     """ Calculates the pairwise Euclidean distance metric over body parts vs. images"""
@@ -946,7 +946,7 @@ def evaluate_network(
 
     # returning to intial folder
     os.chdir(str(start_path))
-
+    cuda.close()
 
 def make_results_file(final_result, evaluationfolder, DLCscorer):
     """

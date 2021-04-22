@@ -207,7 +207,7 @@ Note, we also highly recommend that you use more bodypoints that you might other
 ```
 HOT KEYS IN THE Labeling GUI (also see "help" in GUI)
 ```
-Ctrl + C: Copy labels from previous frame.
+Ctrl + C: Copy labels from previous frame. With multi-animal DLC, only the keypoints of the animal currently selected are duplicated.
 Keyboard arrows: advance frames
 delete key: delete label
 ```
@@ -514,6 +514,8 @@ Firstly, you need to convert detections to tracklets. This step has several trac
 **Summary of current tracker types:**
 
    - `box` detects the assembled animals (individuals) with bounding boxes, with a defined slack/margin specified at: `boundingboxslack` and connects them across time with a greedy box overlap metric `iou_threshold`.
+
+   - `ellipse` rather uses covariance error ellipses fitted to the animal body parts—a parametrization that is more robust to outlier detection and more sensitive to changes in body conformation.
 
    - `skeleton` uses the skeleton, as defined in the config.yaml file to associate detected individuals across different frames.
 

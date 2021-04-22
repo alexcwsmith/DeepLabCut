@@ -146,7 +146,6 @@ def evaluate_multianimal_full(
             str(trainingsetfolder),
             "CollectedData_" + cfg["scorer"] + ".h5",
         ),
-        "df_with_missing",
     )
     # Handle data previously annotated on a different platform
     sep = "/" if "/" in Data.index[0] else "\\"
@@ -319,8 +318,8 @@ def evaluate_multianimal_full(
                             df = GT.unstack("coords").reindex(joints, level='bodyparts')
 
                             # Evaluate PAF edge lengths to calibrate `distnorm`
-                            temp = GT.unstack("bodyparts")[joints]
-                            xy = temp.values.reshape((-1, 2, temp.shape[1])).swapaxes(
+                            temp_xy = GT.unstack("bodyparts")[joints]
+                            xy = temp_xy.values.reshape((-1, 2, temp_xy.shape[1])).swapaxes(
                                 1, 2
                             )
                             if dlc_cfg['partaffinityfield_predict']:
@@ -386,9 +385,12 @@ def evaluate_multianimal_full(
                                     conf[sl] = probs_pred[n_joint][cols].squeeze()
 
                             if plotting:
+                                gt = (temp_xy.values
+                                      .reshape((-1, 2, temp_xy.shape[1]))
+                                      .T.swapaxes(1, 2))
                                 fig = visualization.make_multianimal_labeled_image(
                                     frame,
-                                    groundtruthcoordinates,
+                                    gt,
                                     coords_pred,
                                     probs_pred,
                                     colors,
@@ -603,7 +605,6 @@ def evaluate_multianimal_crossvalidate(
             str(trainingsetfolder),
             "CollectedData_" + cfg["scorer"] + ".h5",
         ),
-        "df_with_missing",
     )
     comparisonbodyparts = auxiliaryfunctions.IntersectionofBodyPartsandOnesGivenbyUser(
         cfg, "all"

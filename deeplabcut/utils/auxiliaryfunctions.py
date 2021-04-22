@@ -569,7 +569,7 @@ def GetScorerName(
     if (
         "resnet" in dlc_cfg["net_type"]
     ):  # ABBREVIATE NETWORK NAMES -- esp. for mobilenet!
-        netname = dlc_cfg["net_type"].replace(" _", "")
+        netname = dlc_cfg["net_type"].replace("_", "")
     elif "mobilenet" in dlc_cfg["net_type"]:  # mobilenet >> mobnet_100; mobnet_35 etc.
         netname = "mobnet_" + str(int(float(dlc_cfg["net_type"].split("_")[-1]) * 100))
     elif "efficientnet" in dlc_cfg["net_type"]:
@@ -704,11 +704,15 @@ def find_analyzed_data(folder, videoname, scorer, filtered=False, track_method="
     """Find potential data files from the hints given to the function."""
     scorer_legacy = scorer.replace("DLC", "DeepCut")
     suffix = "_filtered" if filtered else ""
-    tracker = ""
     if track_method == "skeleton":
         tracker = "_sk"
     elif track_method == "box":
         tracker = "_bx"
+    elif track_method == 'ellipse':
+        tracker = "_el"
+    else:
+        tracker = ""
+
     candidates = []
     for file in grab_files_in_folder(folder, "h5"):
         if all(
@@ -760,6 +764,8 @@ def load_detection_data(video, scorer, track_method):
         tracker = "sk"
     elif track_method == "box":
         tracker = "bx"
+    elif track_method == 'ellipse':
+        tracker = 'el'
     else:
         raise ValueError(f"Unrecognized track_method={track_method}")
 

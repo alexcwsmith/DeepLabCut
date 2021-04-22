@@ -340,7 +340,6 @@ def analyze_videos(
         if term_gpu:
             from numba import cuda
             cuda.close()
-
         return DLCscorer  # note: this is either DLCscorer or DLCscorerlegacy depending on what was used!
     else:
         print("No video(s) were found. Please check your paths and/or 'video_type'.")

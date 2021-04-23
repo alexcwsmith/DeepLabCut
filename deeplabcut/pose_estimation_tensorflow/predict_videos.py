@@ -27,7 +27,6 @@ import tensorflow as tf
 from scipy.optimize import linear_sum_assignment
 from skimage.util import img_as_ubyte
 from tqdm import tqdm
-from numba import cuda
 
 from deeplabcut.pose_estimation_tensorflow.config import load_config
 from deeplabcut.pose_estimation_tensorflow.core import predict

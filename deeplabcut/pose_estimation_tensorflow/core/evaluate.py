@@ -12,16 +12,10 @@ Licensed under GNU Lesser General Public License v3.0
 import argparse
 import os
 from pathlib import Path
-<<<<<<< HEAD:deeplabcut/pose_estimation_tensorflow/core/evaluate.py
-=======
-from numba import cuda
-
-# Dependencies for anaysis
->>>>>>> Release GPU memory after task completion with numba.cuda:deeplabcut/pose_estimation_tensorflow/evaluate.py
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from numba import cuda
+
 
 def pairwisedistances(DataCombined, scorer1, scorer2, pcutoff=-1, bodyparts=None):
     """ Calculates the pairwise Euclidean distance metric over body parts vs. images"""
@@ -505,6 +499,7 @@ def evaluate_network(
     show_errors=True,
     comparisonbodyparts="all",
     gputouse=None,
+    term_gpu=False,
     rescale=False,
     modelprefix="",
 ):
@@ -536,6 +531,9 @@ def evaluate_network(
 
     gputouse: int, optional. Natural number indicating the number of your GPU (see number in nvidia-smi). If you do not have a GPU put None.
         See: https://nvidia.custhelp.com/app/answers/detail/a_id/3751/~/useful-nvidia-smi-queries
+
+    term_gpu:: bool, optional
+        Terminate GPU processes and release GPU memory upon completion.
 
     rescale: bool, default False
         Evaluate the model at the 'global_scale' variable (as set in the test/pose_config.yaml file for a particular project). I.e. every
@@ -952,7 +950,9 @@ def evaluate_network(
 
     # returning to intial folder
     os.chdir(str(start_path))
-    cuda.close()
+    if term_gpu:
+        from numba import cuda
+        cuda.close()
 
 def make_results_file(final_result, evaluationfolder, DLCscorer):
     """

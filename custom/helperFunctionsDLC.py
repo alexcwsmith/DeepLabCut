@@ -474,6 +474,7 @@ def calcDistanceMA(h5File, indiv1, indiv2, bodyPart1, bodyPart2, directory=os.ge
     interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
     return(interactions)
 
+
 def compareAndPlotInteractions(directory, group1, group2):
     """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.
 
@@ -734,6 +735,56 @@ def combineDistancesPerGroup(dataFiles, bodyPart, obj):
         cat = pd.concat([cat, df],axis=0,ignore_index=True)
     return(cat)
 
+def compareAndPlotInteractions(directory, group1, group2):
+    """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.
+
+    Parameters
+    ----------
+    directory : string (optional)
+        Directory containing interaction data.
+    group1 : list of strings
+        Trial IDs for group 1.
+    group22 : string
+        Trial IDs for group 2.
+
+    Returns
+    -------
+    Pandas dataframe of results. Also saves bar graph.
+
+    """
+    
+    files = os.listdir(directory)
+    samplesG1 = []
+    countsG1 = []
+    samplesG2 = []
+    countsG2 = []
+    for f in files:
+        if f.endswith('_Interactions.csv'):
+            sampleName = f.split('/')[0].split('_Dist')[0]
+            df = pd.read_csv(os.path.join(directory, f), index_col=0)
+            count = df.shape[0]
+            if sampleName in group1:
+                samplesG1.append(sampleName)
+                countsG1.append(count)
+            elif sampleName in group2:
+                samplesG2.append(sampleName)
+                countsG2.append(count)
+                
+    g1_arr = np.array(countsG1)
+    g2_arr = np.array(countsG2)
+    g1mean = np.mean(countsG1)
+    g2mean = np.mean(countsG2)
+    g1sem = np.std(countsG1)/np.sqrt(len(countsG1))
+    g2sem = np.std(countsG2)/np.sqrt(len(countsG2))
+    err = [g1sem, g2sem]
+    pval = np.array([ttest_ind(g1_arr, g2_arr, nan_policy='omit')])[0][1]
+    fdr_pass,qvals,_,_ = multipletests(pval, method='fdr_bh',alpha=0.05)
+    
+    res = [g1mean, g2mean, g1sem, g2sem, pval]
+    resNames = ['Group1_Mean', 'Group2_Mean', 'Group1_SEM', 'Group2_SEM', 't-test p-value']
+    result = pd.DataFrame([samplesG1, countsG1, samplesG2, countsG2, resNames, res]).T
+    result.columns=['Trial_Group1', 'InteractionCount_Group1', 'Trial_Group2', 'InteractionCount_Group2', 'Statistic', 'Value']
+    result.to_csv(os.path.join(directory, 'Combined_InteractionCounts.csv'))
 
 def calcVelocity(file, bodyParts, directory, window=5):
     """Calculate velocity of bodyParts between given number of frames (window).

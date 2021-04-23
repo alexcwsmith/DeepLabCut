@@ -14,25 +14,8 @@ import cv2
 from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
-<<<<<<< HEAD
 from custom import customAuxiliaryFunctions as caux
-=======
->>>>>>> bb3f18fb427d76ff9a1194df7a81559b0da1a69b
 
-def h5toCSV(directory):
-    """Convert all .h5 files in directory to .csvs.
-    
-    Parameters
-    ----------
-    directory : string
-        Directory containing .h5 files.
-
-<<<<<<< HEAD
-    Returns
-    -------
-    None.
-
-=======
 def h5toCSV(directory):
     """Convert all .h5 files in directory to .csvs.
     
@@ -44,8 +27,6 @@ def h5toCSV(directory):
     Returns
     -------
     None.
-
->>>>>>> bb3f18fb427d76ff9a1194df7a81559b0da1a69b
     """
     files = os.listdir(directory)
     for f in files:
@@ -113,11 +94,8 @@ def trimFrames(directory, startFrame=None, stopFrame=None):
             df = df[startFrame:stopFrame]
             df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.csv'), key='df_with_missing')
 
-<<<<<<< HEAD
+
 def extractPoses(parentDirectory, prefix=''):
-=======
-def extractPoses(parentDirectory, prefix='VG'):
->>>>>>> bb3f18fb427d76ff9a1194df7a81559b0da1a69b
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
     
 
@@ -448,7 +426,6 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
 
 def calcDistanceMA(h5File, indiv1, indiv2, bodyPart1, bodyPart2, directory=os.getcwd(), distThreshold=5):
     """Calculate the distance between two bodyparts on two individuals in multi-animal DLC.
-<<<<<<< HEAD
 
     Parameters
     ----------
@@ -495,6 +472,7 @@ def calcDistanceMA(h5File, indiv1, indiv2, bodyPart1, bodyPart2, directory=os.ge
     interactions = distDf.loc[distDf['Distance']<distThreshold]
     interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
     return(interactions)
+
 
 def compareAndPlotInteractions(directory, group1, group2):
     """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.
@@ -756,54 +734,6 @@ def combineDistancesPerGroup(dataFiles, bodyPart, obj):
             df.drop(bp, axis=1, level=1, inplace=True)
         cat = pd.concat([cat, df],axis=0,ignore_index=True)
     return(cat)
-=======
->>>>>>> bb3f18fb427d76ff9a1194df7a81559b0da1a69b
-
-    Parameters
-    ----------
-    h5File : string
-        Path to h5 file containing tracking data.
-    indiv1 : string
-        Label of first individual (e.g. mouse1)
-    indiv2 : string
-        Label of second individual (e.g. mouse2)
-    bodyPart1 : string
-        Body part of first individual (e.g. nose)
-    bodyPart2 : string
-        Body part of second individual (e.g. nose)
-    directory : string (optional)
-        Directory to save to. Default current working directory.
-    distThreshold : int/float (optional)
-        Pixel distance threshold to be considered interacting. The default is 5.
-
-    Returns
-    -------
-    Pandas dataframe of interactions.
-
-    """
-    df = pd.read_hdf(h5File)
-    sampleName = h5File.split('/')[-1].split('DLC')[0]
-    scorerName = df.columns[0][0]
-    bp1x = df[(scorerName, indiv1, bodyPart1, 'x')]
-    bp1x.interpolate(method='linear', inplace=True)
-    bp1y = df[(scorerName, indiv1, bodyPart1, 'y')]
-    bp1y.interpolate(method='linear', inplace=True)
-    bp2x = df[(scorerName, indiv2, bodyPart2, 'x')]
-    bp2x.interpolate(method='linear', inplace=True)
-    bp2y = df[(scorerName, indiv2, bodyPart2, 'y')]
-    bp2y.interpolate(method='linear', inplace=True)
-    bp1coords = list(zip(bp1x.tolist(), bp1y.tolist()))
-    bp2coords = list(zip(bp2x.tolist(), bp2y.tolist()))
-    dists = []
-    for i in range(len(bp1coords)):
-        d = np.linalg.norm(np.array(bp1coords[i])-np.array(bp2coords[i]))
-        dists.append(d)
-    distDf = pd.DataFrame([bp1coords,bp2coords,dists]).T
-    distDf.columns=[indiv1+'_'+bodyPart1, indiv2+'_'+bodyPart2, 'Distance']
-    distDf.to_csv(os.path.join(directory, sampleName + '_EuclideanDistances.csv'))
-    interactions = distDf.loc[distDf['Distance']<distThreshold]
-    interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
-    return(interactions)
 
 def compareAndPlotInteractions(directory, group1, group2):
     """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.

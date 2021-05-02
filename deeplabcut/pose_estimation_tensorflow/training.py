@@ -57,7 +57,7 @@ def train_network(
     maxiters=None,
     allow_growth=False,
     gputouse=None,
-    term_gpu=False,
+    term_gpu=True,
     autotune=False,
     keepdeconvweights=True,
     modelprefix="",

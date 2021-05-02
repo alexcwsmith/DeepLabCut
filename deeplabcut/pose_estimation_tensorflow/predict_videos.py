@@ -42,7 +42,7 @@ def analyze_videos(
     shuffle=1,
     trainingsetindex=0,
     gputouse=None,
-    term_gpu=False,
+    term_gpu=True,
     save_as_csv=False,
     destfolder=None,
     batchsize=None,

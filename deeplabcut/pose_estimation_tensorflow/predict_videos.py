@@ -1428,7 +1428,7 @@ def convert_detections2tracklets(
                     mot_tracker = trackingutils.SORTEllipse(
                         inferencecfg.get("max_age", 1),
                         inferencecfg.get("min_hits", 5),
-                        inferencecfg.get("iou_threshold", 0.6)
+                        inferencecfg.get("iou_threshold", 0.6),
                     )
                 tracklets = {}
                 if cfg[
@@ -1472,10 +1472,8 @@ def convert_detections2tracklets(
                             for a in animals
                         ):
                             single = np.full((numjoints, 3), np.nan)
-                            single_dets = (
-                                inferenceutils.convertdetectiondict2listoflist(
-                                    data[imname], inds_unique
-                                )
+                            single_dets = inferenceutils.convertdetectiondict2listoflist(
+                                data[imname], inds_unique
                             )
                             for ind, dets in zip(inds_unique, single_dets):
                                 if len(dets) == 1:

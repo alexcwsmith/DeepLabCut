@@ -115,7 +115,7 @@ from deeplabcut.pose_estimation_3d import (
 )
 
 from deeplabcut.refine_training_dataset.tracklets import convert_raw_tracks_to_h5
-from deeplabcut.refine_training_dataset import extract_outlier_frames, merge_datasets
+from deeplabcut.refine_training_dataset import extract_outlier_frames, merge_datasets, check_labeled_frames_analysis_likelihoods
 from deeplabcut.post_processing import filterpredictions, analyzeskeleton
 
 

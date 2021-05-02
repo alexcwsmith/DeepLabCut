@@ -500,7 +500,6 @@ def evaluate_network(
     comparisonbodyparts="all",
     gputouse=None,
     term_gpu=True,
-    term_gpu=False,
     rescale=False,
     modelprefix="",
 ):

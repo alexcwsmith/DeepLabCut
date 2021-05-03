@@ -8,6 +8,7 @@ examples/OUT
 examples/*
 .local
 
+=======
 # Tensorflow checkpoints
 *.ckpt
 snapshot-*

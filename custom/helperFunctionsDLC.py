@@ -307,7 +307,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     -------
     None.
     """
-
     sampleName = frameDir.split('/')[-1]
     if sampleName == '':
         sampleName = frameDir.split('/')[-2]
@@ -785,6 +784,80 @@ def compareAndPlotInteractions(directory, group1, group2):
     result = pd.DataFrame([samplesG1, countsG1, samplesG2, countsG2, resNames, res]).T
     result.columns=['Trial_Group1', 'InteractionCount_Group1', 'Trial_Group2', 'InteractionCount_Group2', 'Statistic', 'Value']
     result.to_csv(os.path.join(directory, 'Combined_InteractionCounts.csv'))
+
+    plt.figure()
+    plt.bar(['Group1','Group2'],[g1mean, g2mean])
+    plt.errorbar(['Group1', 'Group2'], [g1mean, g2mean], yerr=err, fmt='o', color='r')
+    plt.ylabel('# Frames Interacting', fontsize=16)
+    plt.savefig(os.path.join(directory, 'InteractionFrames.png'))
+    plt.show()
+    return(result)
+
+def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=None, distThreshold=None, stationary=False):
+    """Calculate the distance between a labaled bodyPart and an object in single-animal DLC,
+    and optionally calculate # of frames bodyPart is interacting with object.
+
+    Parameters
+    ----------
+    file : string
+        Path to h5 or csv file containing tracking data.
+    bodyPart : string
+        Body part to calculate distance from.
+    obj : string
+        Name of labeled object.
+    directory : string (optional)
+        Directory to save to. Default current working directory.
+    pcutoff : float
+        Likelihood threshold, frames below this will be interpolated.
+    distThreshold : int/float (optional)
+        Pixel distance threshold to be considered interacting. The default is None (no interaction will be calculated).
+    stationary : bool
+        If the object is stationary, pass True and the average detected coordinate will be used rather than per-frame coordinate.
+    Returns
+    -------
+    Pandas dataframe of distances (optionally also interactions).
+
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    if pcutoff:
+        df.loc[df[(scorerName, bodyPart, 'likelihood')] < pcutoff, (scorerName, bodyPart, 'x')]=None
+        df.loc[df[(scorerName, bodyPart, 'likelihood')] < pcutoff, (scorerName, bodyPart, 'y')]=None        
+    bp1x = df[(scorerName, bodyPart, 'x')]
+    bp1x.interpolate(method='linear', inplace=True)
+    bp1y = df[(scorerName, bodyPart, 'y')]
+    bp1y.interpolate(method='linear', inplace=True)
+    objx = df[(scorerName, obj, 'x')]
+    objx.interpolate(method='linear', inplace=True)
+    objy = df[(scorerName, obj, 'y')]
+    objy.interpolate(method='linear', inplace=True)
+    objcoords = list(zip(objx.tolist(), objy.tolist()))
+    bp1coords = list(zip(bp1x.tolist(), bp1y.tolist()))
+    if stationary:
+        objx=np.mean(objx)
+        objy=np.mean(objy)
+        objcoords=(objx, objy)
+    dists = []
+    for i in range(len(bp1coords)):
+        if not stationary:
+            d = np.linalg.norm(np.array(bp1coords[i])-np.array(objcoords[i]))
+            dists.append(d)
+        elif stationary:
+            d = np.linalg.norm(np.array(bp1coords[i])-np.array(objcoords))
+            dists.append(d)
+    distDf = pd.DataFrame([bp1coords,objcoords,dists]).T
+    distDf.columns=[bodyPart, obj, 'Distance']
+    distDf.to_csv(os.path.join(directory, sampleName + '_EuclideanDistances.csv'))
+    if distThreshold:
+        interactions = distDf.loc[distDf['Distance']<distThreshold]
+        interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
+        return(interactions)
+    elif not distThreshold:
+        return(distDf)
 
 def calcVelocity(file, bodyParts, directory, window=5):
     """Calculate velocity of bodyParts between given number of frames (window).

@@ -139,6 +139,15 @@ def train_network(
 
     # Read file path for pose_config file. >> pass it on
     cfg = auxiliaryfunctions.read_config(config)
+    multiuser=cfg['multiuser']
+    if multiuser:
+        os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+        from numba import cuda
+        if not gputouse:
+            cuda.select_device(0)
+        elif gputouse:
+            cuda.select_device(int(gputouse))
+            
     modelfoldername = auxiliaryfunctions.GetModelFolder(
         cfg["TrainingFraction"][trainingsetindex], shuffle, cfg, modelprefix=modelprefix
     )
@@ -201,5 +210,6 @@ def train_network(
     )
     if term_gpu:
         from numba import cuda
-        cuda.close()
+        device = cuda.get_current_device()
+        device.reset()
     

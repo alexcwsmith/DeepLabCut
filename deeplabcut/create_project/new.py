@@ -24,6 +24,7 @@ def create_new_project(
     copy_videos=False,
     videotype=".avi",
     multianimal=False,
+    multiuser=False,
 ):
     """Creates a new project directory, sub-directories and a basic configuration file. The configuration file is loaded with the default values. Change its parameters to your projects need.
 
@@ -200,6 +201,11 @@ def create_new_project(
         cfg_file["default_augmenter"] = "default"
     cfg_file["croppedtraining"] = False
 
+    if multiuser:
+        cfg_file['multiuser']=True
+    elif not multiuser:
+        cfg_file['multiuser']=False
+        
     # common parameters:
     cfg_file["Task"] = project
     cfg_file["scorer"] = experimenter

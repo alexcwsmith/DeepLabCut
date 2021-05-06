@@ -560,7 +560,8 @@ def evaluate_network(
     from deeplabcut.utils import auxiliaryfunctions
 
     cfg = auxiliaryfunctions.read_config(config)
-
+    multiuser = cfg['multiuser']
+    
     if cfg.get("multianimalproject", False):
         from deeplabcut.pose_estimation_tensorflow.evaluate_multianimal import (
             evaluate_multianimal_full,
@@ -601,6 +602,14 @@ def evaluate_network(
         cfg = auxiliaryfunctions.read_config(config)
         if gputouse is not None:  # gpu selectinon
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gputouse)
+
+        if multiuser and term_gpu:
+            os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+            from numba import cuda
+            if not gputouse:
+                cuda.select_device(0)
+            elif gputouse:
+                cuda.select_device(int(gputouse))
 
         if trainingsetindex == "all":
             TrainingFractions = cfg["TrainingFraction"]
@@ -958,7 +967,8 @@ def evaluate_network(
     os.chdir(str(start_path))
     if term_gpu:
         from numba import cuda
-        cuda.close()
+        device = cuda.get_current_device()
+        device.reset()
 
 def make_results_file(final_result, evaluationfolder, DLCscorer):
     """

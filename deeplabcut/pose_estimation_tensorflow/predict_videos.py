@@ -157,12 +157,21 @@ def analyze_videos(
 
     if gputouse is not None:  # gpu selection
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gputouse)
-
+        
     tf.reset_default_graph()
     start_path = os.getcwd()  # record cwd to return to this directory in the end
 
     cfg = auxiliaryfunctions.read_config(config)
     trainFraction = cfg["TrainingFraction"][trainingsetindex]
+    multiuser=cfg['multiuser']
+   
+    if multiuser and term_gpu:
+        from numba import cuda
+        os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+        if not gputouse and TFGPUinference:
+            cuda.select_device(0)
+        elif gputouse:
+            cuda.select_device(int(gputouse))
 
     if cropping is not None:
         cfg["cropping"] = True
@@ -354,7 +363,8 @@ def analyze_videos(
             )
         if term_gpu:
             from numba import cuda
-            cuda.close()
+            device = cuda.get_current_device()
+            device.reset()
         return DLCscorer  # note: this is either DLCscorer or DLCscorerlegacy depending on what was used!
     else:
         print("No video(s) were found. Please check your paths and/or 'video_type'.")

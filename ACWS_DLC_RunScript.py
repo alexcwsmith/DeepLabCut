@@ -39,6 +39,7 @@ if new: #change task and experimenter below if new=True
 dlc.extract_frames(path_config_file, mode='automatic') #Add argument mode='manual' to manually select frames, make sure to grab diverse frames to capture broad range of behaviors, also consider if there are lighting differences within the frame
 dlc.label_frames(path_config_file)
 dlc.check_labels(path_config_file, draw_skeleton=True)
+dlc.cropimagesandlabels(path_config_file, numcrops=10, size=(400, 200))
 ###CREATE TRAINING DATASET:
 dlc.create_training_dataset(path_config_file, net_type='resnet_50', augmenter_type='imgaug')
 

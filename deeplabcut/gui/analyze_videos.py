@@ -185,6 +185,16 @@ class Analyze_videos(wx.Panel):
             self.calibrate.SetSelection(1)
             self.hbox4.Add(self.calibrate, 1, 1)
 
+            self.identity_toggle = wx.RadioBox(
+                self,
+                label="Assemble with identity only?",
+                choices=["Yes", "No"],
+                majorDimension=1,
+                style=wx.RA_SPECIFY_COLS,
+            )
+            self.identity_toggle.SetSelection(1)
+            self.hbox4.Add(self.identity_toggle, 1, 1)
+
             winsize_text = wx.StaticBox(self, label="Prioritize past connections over a window of size:")
             winsize_sizer = wx.StaticBoxSizer(winsize_text, wx.VERTICAL)
             self.winsize = wx.SpinCtrl(self, value="0")
@@ -247,7 +257,6 @@ class Analyze_videos(wx.Panel):
 
         boxsizer.Add(self.hbox1, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 10)
         boxsizer.Add(self.hbox2, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 10)
-        boxsizer.Add(self.hbox3, 0, wx.EXPAND | wx.TOP | wx.BOTTOM, 10)
 
         config_file = auxiliaryfunctions.read_config(self.config)
         if config_file.get("multianimalproject", False):
@@ -412,6 +421,7 @@ class Analyze_videos(wx.Panel):
             track_method=self.trackertypes.GetValue(),
             calibrate=self.calibrate.GetStringSelection() == "Yes",
             window_size=self.winsize.GetValue(),
+            identity_only=self.identity_toggle.GetStringSelection() == "Yes",
         )
 
     # def video_tracklets(self,event):
@@ -480,15 +490,13 @@ class Analyze_videos(wx.Panel):
                 robust_nframes=robust,
             )
             if self.create_video_with_all_detections.GetStringSelection() == "Yes":
-                trainFrac = self.cfg["TrainingFraction"][trainingsetindex]
-                scorername, DLCscorerlegacy = auxiliaryfunctions.GetScorerName(
-                    self.cfg, shuffle, trainFraction=trainFrac
-                )
-                print(scorername)
                 deeplabcut.create_video_with_all_detections(
-                    self.config, self.filelist, DLCscorername=scorername
+                    self.config,
+                    self.filelist,
+                    videotype=self.videotype.GetValue(),
+                    shuffle=shuffle,
+                    trainingsetindex=trainingsetindex,
                 )
-
         else:
             scorername = deeplabcut.analyze_videos(
                 self.config,

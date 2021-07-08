@@ -15,6 +15,7 @@ from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
 from custom import customAuxiliaryFunctions as caux
+import glob
 
 def h5toCSV(directory):
     """Convert all .h5 files in directory to .csvs.
@@ -525,7 +526,7 @@ def compareAndPlotInteractions(directory, group1, group2):
     plt.bar(['Group1','Group2'],[g1mean, g2mean])
     plt.errorbar(['Group1', 'Group2'], [g1mean, g2mean], yerr=err, fmt='o', color='r')
     plt.ylabel('# Frames Interacting', fontsize=16)
-    plt.savefig(os.path.join(directory, 'InteractionFrames.png'))
+#    plt.savefig(os.path.join(directory, 'InteractionFrames.png'))
     plt.show()
     return(result)
 
@@ -617,6 +618,9 @@ def calcVelocity(file, bodyParts, directory, window=5):
     sampleName = file.split('/')[-1].split('DLC')[0]
     scorerName = df.columns[0][0]
     cat = pd.DataFrame()
+    if type(bodyParts)==str:
+        print("Single body part detected as string, converting to list")
+        bodyParts = [bodyParts]
     for bp in bodyParts:
         velocities = []
         frames = []
@@ -633,6 +637,81 @@ def calcVelocity(file, bodyParts, directory, window=5):
     cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
     return(cat)
 
+def plotVelocities(group1, group2, directory, window, group1name=None, group2name=None):
+    g1cat = pd.DataFrame()
+    for mouse in group1:
+        try:
+            resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+            df = pd.read_csv(resFile1[0], index_col=0)
+            g1cat[mouse+'_average1']=df['average']
+            #df.drop('average', axis=1, inplace=True)
+        except IndexError:
+            try:
+                resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+                df = pd.read_csv(resFile1[0], index_col=0)
+                g1cat[mouse+'_average1']=df['average']
+            except IndexError:
+                print("No result file 1 found for " + mouse)
+                pass
+        try:
+            resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+            df = pd.read_csv(resFile2[0], index_col=0)
+            g1cat[mouse+'_average2']=df['average']
+        except IndexError:
+            try:
+                resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+                df = pd.read_csv(resFile2[0])
+                g1cat[mouse+'_average2']=df['average']
+            except IndexError:
+                print("No result file 2 found for " + mouse)
+                pass
+    g2cat = pd.DataFrame()
+    for mouse in group2:
+        try:
+            resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+            df = pd.read_csv(resFile1[0], index_col=0)
+            g2cat[mouse+'_average1']=df['average']
+            #df.drop('average', axis=1, inplace=True)
+        except FileNotFoundError:
+            try:
+                resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+                df = pd.read_csv(resFile1[0], index_col=0)
+                g2cat[mouse+'_average1']=df['average']
+            except FileNotFoundError:
+                print("No result file 1 found for " + mouse)
+                pass
+        try:
+            resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+            df = pd.read_csv(resFile2[0], index_col=0)
+            g2cat[mouse+'_average2']=df['average']
+        except FileNotFoundError:
+            try:
+                resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+                df = pd.read_csv(resFile2[0])
+                g2cat[mouse+'_average2']=df['average']
+            except FileNotFoundError:
+                print("No result file 2 found for " + mouse)
+                pass
+            #df.drop('average', axis=1, inplace=True)
+      #  g2cat = pd.concat([g2cat, df],axis=1)
+    g1aves=np.array(np.mean(g1cat, axis=0))
+    g2aves=np.array(np.mean(g2cat, axis=0))
+    g1mean=np.mean(g1aves)
+    g2mean=np.mean(g2aves)
+    g1sem=np.std(g1aves)/np.sqrt(g1aves.shape[0])
+    g2sem=np.std(g2aves)/np.sqrt(g2aves.shape[0])
+    err=[g1sem,g2sem]
+    pval = np.array([ttest_ind(g1aves, g2aves, nan_policy='omit')])[0][1]
+    plt.figure(figsize=(6,8))
+    if group1name:
+        plt.bar([group1name, group2name], [g1mean,g2mean], width=0.6, yerr=err, color=['lightskyblue','coral'], edgecolor='black', linewidth=3.0, ecolor='k', error_kw={'lw':3.0})
+      #  plt.legend([group1name],[group2name])
+    else:
+        plt.bar(['Group1', 'Group2'], [g1mean,g2mean], width=0.4, yerr=err, color=['b','r'], edgecolor='black', linewidth=3.0, ecolor=['r','b'])
+    plt.title(r'Average Velocity - Window ' +str(window)+" frames, p="+str(round(pval,3)), fontsize=18)
+    plt.ylabel('Mean Velocity (Frames)', fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.savefig(os.path.join(directory, 'VelocityPlot.png'))
 
 def makeObjectStationary(directory, objectName, dtype='.h5', pcutoff=0.5, file=None):
     """If a stationary object is in the video, alter result data files to reflect it's mean position.

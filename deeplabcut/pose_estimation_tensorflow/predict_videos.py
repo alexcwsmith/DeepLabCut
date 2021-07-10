@@ -16,7 +16,10 @@ import argparse
 import os
 import os.path
 import pickle
+<<<<<<< HEAD
 import re
+=======
+>>>>>>> Commit predict_videos for TF2
 import time
 from pathlib import Path
 
@@ -46,7 +49,10 @@ def analyze_videos(
     shuffle=1,
     trainingsetindex=0,
     gputouse=None,
+<<<<<<< HEAD
     term_gpu=True,
+=======
+>>>>>>> Commit predict_videos for TF2
     save_as_csv=False,
     destfolder=None,
     batchsize=None,
@@ -54,6 +60,10 @@ def analyze_videos(
     TFGPUinference=True,
     dynamic=(False, 0.5, 10),
     modelprefix="",
+<<<<<<< HEAD
+=======
+    c_engine=False,
+>>>>>>> Commit predict_videos for TF2
     robust_nframes=False,
     allow_growth=False
 ):
@@ -85,9 +95,12 @@ def analyze_videos(
     gputouse: int, optional. Natural number indicating the number of your GPU (see number in nvidia-smi). If you do not have a GPU put None.
     See: https://nvidia.custhelp.com/app/answers/detail/a_id/3751/~/useful-nvidia-smi-queries
 
+<<<<<<< HEAD
     term_gpu:: bool, optional
         Terminate GPU processes and release GPU memory upon completion.
 
+=======
+>>>>>>> Commit predict_videos for TF2
     save_as_csv: bool, optional
         Saves the predictions in a .csv file. The default is ``False``; if provided it must be either ``True`` or ``False``
 
@@ -115,6 +128,14 @@ def analyze_videos(
         current position is utilized for updating the crop window for the next frame (this is why the margin is important and should be set large
         enough given the movement of the animal).
 
+<<<<<<< HEAD
+=======
+    c_engine: bool, optional (default=False)
+        If True, uses C code to detect 2D local maxima for multianimal inference.
+        Pure-Python functions are used by default, which, although slower, do not require the user
+        to install Cython and compile external code.
+
+>>>>>>> Commit predict_videos for TF2
     robust_nframes: bool, optional (default=False)
         Evaluate a video's number of frames in a robust manner.
         This option is slower (as the whole video is read frame-by-frame),
@@ -289,6 +310,21 @@ def analyze_videos(
             from deeplabcut.pose_estimation_tensorflow.predict_multianimal import (
                 AnalyzeMultiAnimalVideo,
             )
+<<<<<<< HEAD
+=======
+
+            # Re-use data-driven PAF graph for video analysis. Note that this must
+            # happen after setting up the TF session to avoid graph mismatch.
+            best_edges = dlc_cfg.get("paf_best")
+            if best_edges is not None:
+                best_graph = [dlc_cfg["partaffinityfield_graph"][i] for i in best_edges]
+            else:
+                best_graph = dlc_cfg["partaffinityfield_graph"]
+
+            dlc_cfg["partaffinityfield_graph"] = best_graph
+            dlc_cfg["num_limbs"] = len(best_graph)
+
+>>>>>>> Commit predict_videos for TF2
             for video in Videos:
                 AnalyzeMultiAnimalVideo(
                     video,
@@ -299,7 +335,14 @@ def analyze_videos(
                     sess,
                     inputs,
                     outputs,
+<<<<<<< HEAD
                     destfolder,
+=======
+                    pdindex,
+                    save_as_csv,
+                    destfolder,
+                    c_engine=c_engine,
+>>>>>>> Commit predict_videos for TF2
                     robust_nframes=robust_nframes,
                 )
         else:
@@ -1263,7 +1306,7 @@ def convert_detections2tracklets(
         folder also needs to be passed.
 
     track_method: str, optional
-        Method used to track animals, either 'box', 'skeleton', or 'ellipse'.
+        Method uses to track animals, either 'box', 'skeleton', or 'ellipse'.
         By default, a constant velocity Kalman filter is used to track
         covariance error ellipses fitted to an individual's body parts.
 
@@ -1476,7 +1519,7 @@ def convert_detections2tracklets(
                             continue
                         imindex = int(re.findall(r"\d+", imname)[0])
                         _single[imindex] = single_detection
-                    tracklets["single"].update(_single)
+                    tracklets["single"].update(ass.unique)
 
                 keep = set(multi_bpts).difference(ignore_bodyparts or [])
                 keep_inds = sorted(multi_bpts.index(bpt) for bpt in keep)

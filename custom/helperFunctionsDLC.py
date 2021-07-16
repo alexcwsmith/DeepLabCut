@@ -136,7 +136,7 @@ def extractPoses(parentDirectory, prefix=''):
                 shutil.copyfile(fullpath, targpath)
 
 
-def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
+def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=False, index=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
 
@@ -153,7 +153,7 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
     fps : int/float, optional
         FPS of the video, for time calculations. Default 30.0.
     flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
+        If the video was collected with horizontal mirroring, set True. The default is False.
     index : bool, optional
         Whether to return frame indices for left/right zones, or only time spent in each. The default is False.
 
@@ -208,7 +208,7 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
     axis : string, optional
         Axis to split into zones ('x' or 'y'). The default is 'x'.
     flipped : bool, optional
-        If the video was collected with mirroring along specified axis, set True. The default is True.
+        If the video was collected with mirroring along specified axis, set True. The default is False.
     save : bool, optional
         Whether to save or only return result files. The default is True.
 
@@ -279,7 +279,7 @@ def extractFrames(vidPath, saveDir):
     vc.release()
 
 
-def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=True):
+def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=False):
     """Create new videos containing only frames in each zone.
     
 
@@ -300,7 +300,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     size: tuple
         (width, height) size of video frames (must be same dimensions as original)
     flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
+        If the video was collected with horizontal mirroring, set True. The default is False.
 
     Returns
     -------
@@ -371,7 +371,7 @@ def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
-def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
+def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=False):
     """Calculate time spent in each half of arena, split along a given axis.
     
 
@@ -388,7 +388,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
     saveDir: string, optional
         Path to directory to save results. If None do not save, only return.
     flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
+        If the video was collected with horizontal mirroring, set True. The default is False.
 
     Returns
     -------
@@ -419,7 +419,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
     df = pd.DataFrame([lstarts, l, rstarts, r]).T
     df.columns=['Left Bout Start Frame', 'Left Bout Length', 'Right Bout Start Frame', 'Right Bout Length']
     if saveDir:
-        df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
+        df.to_csv(os.path.join(saveDir, sampleName + '_'+bodyPart+'_ZoneBouts.csv'))
     return df    
 
 def calcDistanceMA(h5File, indiv1, indiv2, bodyPart1, bodyPart2, directory=os.getcwd(), distThreshold=5):

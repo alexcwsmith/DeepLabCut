@@ -14,7 +14,6 @@ import cv2
 from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
-from custom import customAuxiliaryFunctions as caux
 import glob
 
 def h5toCSV(directory):
@@ -44,6 +43,8 @@ def interpolateValues(file, pcutoff):
     ----------
     file : string
         Path to CSV or h5 file to interpolate.
+    pcutoff : float
+        Likelihood value below which to interpolate values for.
     
     Returns
     -------
@@ -712,6 +713,18 @@ def plotVelocities(group1, group2, directory, window, group1name=None, group2nam
     plt.ylabel('Mean Velocity (Frames)', fontsize=16)
     plt.xticks(fontsize=16)
     plt.savefig(os.path.join(directory, 'VelocityPlot.png'))
+
+def averageArrays(arrays, axis=0, return_sem=True):
+    results = []
+    for i in range(len(arrays)):
+        ave = np.array(np.mean(arrays[i], axis=axis))
+        results.append(ave)
+        sem = np.std(ave)/np.sqrt(arrays[i].shape[axis])
+        if return_sem:
+            results.append(sem)
+    return results
+        
+   
 
 def makeObjectStationary(directory, objectName, dtype='.h5', pcutoff=0.5, file=None):
     """If a stationary object is in the video, alter result data files to reflect it's mean position.

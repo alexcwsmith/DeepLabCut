@@ -15,6 +15,7 @@ from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
 import glob
+from deeplabcut.utils import auxiliaryfunctions
 
 def h5toCSV(directory):
     """Convert all .h5 files in directory to .csvs.
@@ -1261,4 +1262,24 @@ def calcVelocity(file, bodyParts, directory, window=5):
     cat.index=frames
     cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
     return(cat)
+
+def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
+    cfg = auxiliaryfunctions.read_config(config)
+    if not iteration:
+        it=cfg['iteration']
+    elif iteration:
+        it = iteration
+    projectPath = cfg['project_path']
+    evalPath = os.path.join(projectPath, 'evaluation-results')
+    df = pd.read_csv(os.path.join(evalPath, 'iteration-'+str(it), 'CombinedEvaluation-results.csv'), index_col=0)
+    ticks = df['Training iterations:'].tolist()
+    fig, ax = plt.subplots()
+    df.plot(kind='line', x='Training iterations:', y=' Train error(px)', color='blue', legend=True, ax=ax)
+    df.plot(kind='line', x='Training iterations:', y=' Test error(px)', color='red', legend=True, ax=ax)
+    df.plot(kind='line', x='Training iterations:', y='Train error with p-cutoff', color='green', legend=True, ax=ax)
+    df.plot(kind='line', x='Training iterations:', y='Test error with p-cutoff', color='orange', legend=True, ax=ax)
+    plt.xticks(ticks=ticks, rotation=45)
+    ax.set_ylabel('Error (px)', fontsize=18)
+    ax.set_xlabel('Iteration', fontsize=18)
+    fig.savefig(os.path.join(evalPath, 'iteration-'+str(it),'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
 

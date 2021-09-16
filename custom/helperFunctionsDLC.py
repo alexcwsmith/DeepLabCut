@@ -271,6 +271,7 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
                 rightData.to_csv(os.path.join(directory, 'SplitZoneData/' + n + '_RightZone.csv'))
     return leftData, rightData
 
+
 def extractFrames(vidPath, saveDir):
     """Extract all frames from video as .jpg files.
 
@@ -332,7 +333,6 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     -------
     None.
     """
-
     sampleName = frameDir.split('/')[-1]
     if sampleName == '':
         sampleName = frameDir.split('/')[-2]
@@ -1299,4 +1299,4 @@ def sortFiles(directory, prefixes, extensions):
             if file.startswith(group):
                 f, e = os.path.splitext(file)
                 shutil.copy(os.path.join(directory, file), os.path.join(directory, group, e.strip('.')))
-    
+

@@ -11,6 +11,7 @@ examples/*
 examples/.DS_Store
 examples/*
 
+=======
 # Tensorflow checkpoints
 *.ckpt
 snapshot-*

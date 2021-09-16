@@ -114,7 +114,7 @@ def PlottingResults(
                     "-",
                     color=colors(bpindex),
                     linewidth=linewidth,
-                    alpha=alphavalue,
+                    alpha=alphavalue/2,
                 )
 
                 Histogram(temp_x, colors(bpindex), bins, ax4, linewidth=linewidth)

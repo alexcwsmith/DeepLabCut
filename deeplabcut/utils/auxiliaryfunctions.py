@@ -764,11 +764,14 @@ def find_analyzed_data(folder, videoname, scorer, filtered=False, track_method="
     return filepath, scorer, suffix
 
 
-def load_analyzed_data(folder, videoname, scorer, filtered=False, track_method=""):
+def load_analyzed_data(folder, videoname, scorer, filtered=False, track_method="", datatype='h5'):
     filepath, scorer, suffix = find_analyzed_data(
         folder, videoname, scorer, filtered, track_method
     )
-    df = pd.read_hdf(filepath)
+    if datatype=='h5':
+        df = pd.read_hdf(filepath)
+    elif datatype=='csv':
+        df = pd.read_csv(filepath, header=[0,1,2], index_col=0)
     return df, filepath, scorer, suffix
 
 

@@ -65,7 +65,8 @@ def analyze_videos(
     c_engine=False,
 >>>>>>> Commit predict_videos for TF2
     robust_nframes=False,
-    allow_growth=False
+    allow_growth=False,
+    term_gpu=True
 ):
     """
     Makes prediction based on a trained network. The index of the trained network is specified by parameters in the config file (in particular the variable 'snapshotindex')
@@ -145,6 +146,10 @@ def analyze_videos(
         For some smaller GPUs the memory issues happen. If true, the memory allocator does not pre-allocate the entire specified
         GPU memory region, instead starting small and growing as needed. See issue: https://forum.image.sc/t/how-to-stop-running-out-of-vram/30551/2
 
+    term_gpu: bool, optional (default=True).
+        Whether to terminate the GPU process to free up resources at the end of analysis. Only set to False if you are immediately going to
+        resume work when analysis finishes and will close your console when complete.
+        
     Examples
     --------
 

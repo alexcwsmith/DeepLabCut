@@ -939,3 +939,20 @@ def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
     ax.set_xlabel('Iteration', fontsize=18)
     fig.savefig(os.path.join(evalPath, 'iteration-'+str(it),'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
         
+def sortFiles(directory, prefixes, extensions):
+    files = os.listdir(directory)
+    groupPaths = []
+    for group in prefixes:
+        if not os.path.exists(os.path.join(directory, group)):
+            os.mkdir(os.path.join(directory, group))
+            groupPaths.append(os.path.join(directory, group))
+    for ext in extensions:
+        for group in prefixes:
+            if not os.path.exists(os.path.join(directory, group, ext)):
+                os.mkdir(os.path.join(directory, group, ext))
+    for file in files:
+        for group in prefixes:
+            if file.startswith(group):
+                f, e = os.path.splitext(file)
+                shutil.copy(os.path.join(directory, file), os.path.join(directory, group, e.strip('.')))
+    

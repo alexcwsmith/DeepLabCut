@@ -57,7 +57,6 @@ def analyze_videos(
     c_engine=False,
     robust_nframes=False,
     allow_growth=False,
-    term_gpu=True
 ):
     """
     Makes prediction based on a trained network. The index of the trained network is specified by parameters in the config file (in particular the variable 'snapshotindex')

@@ -1258,7 +1258,7 @@ def calcVelocity(file, bodyParts, directory, window=5):
             velocities.append(velo)
             frames.append(i)
         cat[bp]=velocities
-    cat['average']=cat.mean(axis=1
+    cat['average']=cat.mean(axis=1)
     cat.index=frames
     cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
     return(cat)

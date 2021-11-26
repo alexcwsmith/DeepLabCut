@@ -26,7 +26,7 @@ try:
     mpl.use("WxAgg")
     from deeplabcut import generate_training_dataset
     from deeplabcut import refine_training_dataset
-    
+
     from deeplabcut.gui import select_crop_parameters
     from deeplabcut.gui.launch_script import launch_dlc
     from deeplabcut.gui.label_frames import label_frames
@@ -35,7 +35,7 @@ try:
 
     from deeplabcut.utils.skeleton import SkeletonBuilder
     print("Imported DLC forked from alexcwsmith, last rebased 9/18/21")
-except ModuleNotFoundError:
+except (ModuleNotFoundError, ImportError):
     print(
         "DLC loaded in light mode; you cannot use any GUI (labeling, relabeling and standalone GUI)"
     )
@@ -113,8 +113,11 @@ from deeplabcut.pose_estimation_3d import (
 )
 
 from deeplabcut.refine_training_dataset.stitch import stitch_tracklets
-#from deeplabcut.refine_training_dataset.tracklets import convert_raw_tracks_to_h5
-from deeplabcut.refine_training_dataset import extract_outlier_frames, merge_datasets, check_labeled_frames_analysis_likelihoods
+from deeplabcut.refine_training_dataset import (
+    extract_outlier_frames,
+    merge_datasets,
+    find_outliers_in_raw_data,
+)
 from deeplabcut.post_processing import filterpredictions, analyzeskeleton
 
 

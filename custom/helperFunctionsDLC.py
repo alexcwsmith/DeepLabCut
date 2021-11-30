@@ -1300,3 +1300,29 @@ def sortFiles(directory, prefixes, extensions):
                 f, e = os.path.splitext(file)
                 shutil.copy(os.path.join(directory, file), os.path.join(directory, group, e.strip('.')))
 
+def checkLabelSD(config, drop=None):
+    cfg = auxiliaryfunctions.read_config(config)
+    videos = cfg['video_sets']
+    projectPath = cfg['project_path']
+    scorer = cfg['scorer']
+    it = cfg['iteration']
+    dataPath = os.path.join(projectPath, 'labeled-data')
+    folds = os.listdir(dataPath)
+    cat = pd.DataFrame()
+    for f in folds:
+        if not f.endswith('_labeled'):
+            df = pd.read_hdf(os.path.join(dataPath, f, 'CollectedData_'+scorer+'.h5'))
+            if drop:
+                df.drop((scorer, drop), axis=1, inplace=True)
+            dfx = df.iloc[:,::2]
+            dfy = df.iloc[:,1::2]
+            xdata = np.array(dfx)
+            ydata = np.array(dfy)
+            xstd = np.nanstd(xdata, axis=1)
+            ystd = np.nanstd(ydata, axis=1)
+            stdDf = pd.DataFrame(xstd, ystd).reset_index()
+            stdDf.columns=['X','Y']
+            stdDf.index=df.index
+            cat = pd.concat([cat, stdDf], axis=0)
+    cat.to_csv(os.path.join(projectPath, 'labeledData_StDevs_iter'+str(it)+'.csv'))
+

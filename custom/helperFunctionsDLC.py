@@ -1326,3 +1326,22 @@ def checkLabelSD(config, drop=None):
             cat = pd.concat([cat, stdDf], axis=0)
     cat.to_csv(os.path.join(projectPath, 'labeledData_StDevs_iter'+str(it)+'.csv'))
 
+def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
+    cfg = auxiliaryfunctions.read_config(config)
+    if not pcutoff:
+        pcutoff=cfg['pcutoff']
+    h5s = glob.glob(os.path.join(resultDirectory, '*.h5'))
+    info = []
+    for f in h5s:
+        fileName = os.path.basename(f)
+        session = fileName.split('DLC')[0]
+        df = pd.read_hdf(f)
+        scorer=df.columns[0][0]
+        objFrames = df.loc[df[(scorer, obj, 'likelihood')]>pcutoff]
+        if objFrames.shape[0]>0:
+            startFrame=objFrames.index[0]
+        else:
+            startFrame=0
+        info.append((fileName, startFrame, objFrames.shape[0]))
+    return sorted(info)
+

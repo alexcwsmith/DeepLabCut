@@ -62,7 +62,6 @@ def create_config_template(multianimal=False):
         \n
     # Cropping Parameters (for analysis and outlier frame detection)
         cropping:
-        croppedtraining:
     #if cropping is true for analysis, then set the values here:
         x1:
         x2:
@@ -110,7 +109,6 @@ def create_config_template(multianimal=False):
         \n
     # Cropping Parameters (for analysis and outlier frame detection)
         cropping:
-        croppedtraining:
     #if cropping is true for analysis, then set the values here:
         x1:
         x2:
@@ -293,7 +291,7 @@ def attempttomakefolder(foldername, recursive=False):
         )  # https://github.com/AlexEMG/DeepLabCut/issues/105 (windows)
 
     if os.path.isdir(foldername):
-        print(foldername, " already exists!")
+        pass
     else:
         if recursive:
             os.makedirs(foldername)
@@ -516,7 +514,7 @@ def IntersectionofBodyPartsandOnesGivenbyUser(cfg, comparisonbodyparts):
         allbpts = cfg["bodyparts"]
 
     if comparisonbodyparts == "all":
-        return allbpts
+        return list(allbpts)
     else:  # take only items in list that are actually bodyparts...
         cpbpts = []
         # Ensure same order as in config.yaml
@@ -766,11 +764,14 @@ def find_analyzed_data(folder, videoname, scorer, filtered=False, track_method="
     return filepath, scorer, suffix
 
 
-def load_analyzed_data(folder, videoname, scorer, filtered=False, track_method=""):
+def load_analyzed_data(folder, videoname, scorer, filtered=False, track_method="", datatype='h5'):
     filepath, scorer, suffix = find_analyzed_data(
         folder, videoname, scorer, filtered, track_method
     )
-    df = pd.read_hdf(filepath)
+    if datatype=='h5':
+        df = pd.read_hdf(filepath)
+    elif datatype=='csv':
+        df = pd.read_csv(filepath, header=[0,1,2], index_col=0)
     return df, filepath, scorer, suffix
 
 

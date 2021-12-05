@@ -7,6 +7,9 @@ examples/3D*
 examples/OUT
 examples/*
 .local
+.DS_Store
+examples/.DS_Store
+examples/*
 
 =======
 # Tensorflow checkpoints
@@ -110,6 +113,7 @@ ENV/
 # Spyder project settings
 .spyderproject
 .spyproject
+.vscode
 
 # Rope project settings
 .ropeproject

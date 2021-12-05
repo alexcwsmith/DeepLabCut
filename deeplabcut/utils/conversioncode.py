@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from deeplabcut.generate_training_dataset import trainingsetmanipulation
 from deeplabcut.utils import auxiliaryfunctions
 import warnings
 
@@ -40,7 +41,7 @@ def convertannotationdata_fromwindows2unixstyle(
     """
     cfg = auxiliaryfunctions.read_config(config)
     folders = [
-        Path(config).parent / "labeled-data" / Path(vid).stem
+        Path(config).parent / "labeled-data" / trainingsetmanipulation._robust_path_split(vid)[1]
         for vid in cfg["video_sets"]
     ]
 
@@ -198,13 +199,9 @@ def merge_windowsannotationdataONlinuxsystem(cfg):
 
     AnnotationData = []
     data_path = Path(cfg["project_path"], "labeled-data")
-    use_cropped = cfg.get("croppedtraining", False)
     annotationfolders = []
     for elem in auxiliaryfunctions.grab_files_in_folder(data_path, relative=False):
-        if os.path.isdir(elem) and (
-            (use_cropped and elem.endswith("_cropped"))
-            or not (use_cropped or "_cropped" in elem)
-        ):
+        if os.path.isdir(elem):
             annotationfolders.append(elem)
     print("The following folders were found:", annotationfolders)
     for folder in annotationfolders:

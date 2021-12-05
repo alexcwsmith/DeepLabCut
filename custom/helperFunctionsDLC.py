@@ -14,8 +14,8 @@ import cv2
 from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
-from custom import customAuxiliaryFunctions as caux
 import glob
+from deeplabcut.utils import auxiliaryfunctions
 
 def h5toCSV(directory):
     """Convert all .h5 files in directory to .csvs.
@@ -44,6 +44,8 @@ def interpolateValues(file, pcutoff):
     ----------
     file : string
         Path to CSV or h5 file to interpolate.
+    pcutoff : float
+        Likelihood value below which to interpolate values for.
     
     Returns
     -------
@@ -95,7 +97,6 @@ def trimFrames(directory, startFrame=None, stopFrame=None):
             df = df[startFrame:stopFrame]
             df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.csv'), key='df_with_missing')
 
-
 def extractPoses(parentDirectory, prefix=''):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
     
@@ -136,7 +137,7 @@ def extractPoses(parentDirectory, prefix=''):
                 shutil.copyfile(fullpath, targpath)
 
 
-def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=True, index=False):
+def calcZoneTimes(csvPath, modelPrefix, bodyPart, midline='all', axis='x', pcutoff=0.1, fps=30, flippedX=False, index=False, objects=None):
     """Calculate time spent in each half of arena, split along a given axis.
     
 
@@ -148,14 +149,18 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
         Name of DLC model that is level 0 of multiindex.
     bodyPart : string
         Labeled body part to use for calculations. Must be in level 1 of multiindex.
+    midline : string, optional
+        Bodypart used to calculate the midline. Must be either the name of one body part, or 'all'.
     axis : string, optional
         Axis to split into zones ('x' or 'y'). The default is 'x'.
     fps : int/float, optional
         FPS of the video, for time calculations. Default 30.0.
     flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
+        If the video was collected with horizontal mirroring, set True. The default is False.
     index : bool, optional
         Whether to return frame indices for left/right zones, or only time spent in each. The default is False.
+    objects : string or list
+        Any labeled stationary objects that should be excluded if midline='all'.
 
     Returns
     -------
@@ -173,18 +178,39 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, axis='x', fps=30, flippedX=Tru
     elif csvPath.endswith('.h5'):
         df = pd.read_hdf(csvPath)
     else:
-        raise NameError("Must be either .csv or .h5 file")
-    sx = df[(modelPrefix, bodyPart, axis)]
-    middle = (sx.max()+sx.min())/2
+        raise ValueError("Must be either .csv or .h5 file")
+    if midline != 'all':
+        data = df.loc[df[modelPrefix, bodyPart, 'likelihood']>pcutoff]
+        middle = (data[(modelPrefix, bodyPart, axis)].min()+data[(modelPrefix, bodyPart, axis)].max()/2)
+    elif midline=='all':
+        data = df
+        if objects:
+            if isinstance(objects, list):
+                for obj in objects:
+                    data = data.drop((modelPrefix, obj), axis=1)
+            elif isinstance(objects, str):
+                data = data.drop((modelPrefix, objects), axis=1)
+        bps = data.droplevel([0,2],axis=1).columns.unique().tolist()
+        for bp in bps:
+            aveLH = data[(modelPrefix, bp, 'likelihood')].mean()
+            if aveLH < pcutoff:
+                print(bp + " average likelihood " + str(aveLH) + " being removed")
+                data.drop((modelPrefix, bp), axis=1, inplace=True)
+        if axis=='x':
+            indexer=0
+        elif axis=='y':
+            indexer=1
+        data = data.iloc[:,indexer::3]
+        middle = (data.min().min()+data.max().max())/2
     if flippedX:
-        left = df.loc[df[modelPrefix, bodyPart, axis]>middle]
+        left = df.loc[df[(modelPrefix, bodyPart, axis)]>middle]
         leftTime = left.shape[0]/fps
-        right = df.loc[df[modelPrefix, bodyPart, axis]<middle]
+        right = df.loc[df[(modelPrefix, bodyPart, axis)]<middle]
         rightTime = right.shape[0]/fps
     elif not flippedX:
         left = df.loc[df[modelPrefix, bodyPart, axis]<middle]
         leftTime = left.shape[0]/fps
-        right = df.loc[df[modelPrefix, bodyPart, axis]>middle]
+        right = df.loc[df[(modelPrefix, bodyPart, axis)]>middle]
         rightTime = right.shape[0]/fps
     if index:
         leftIndex = list(left.index)
@@ -208,7 +234,7 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
     axis : string, optional
         Axis to split into zones ('x' or 'y'). The default is 'x'.
     flipped : bool, optional
-        If the video was collected with mirroring along specified axis, set True. The default is True.
+        If the video was collected with mirroring along specified axis, set True. The default is False.
     save : bool, optional
         Whether to save or only return result files. The default is True.
 
@@ -280,7 +306,7 @@ def extractFrames(vidPath, saveDir):
     vc.release()
 
 
-def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=True):
+def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=False):
     """Create new videos containing only frames in each zone.
     
 
@@ -301,7 +327,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
     size: tuple
         (width, height) size of video frames (must be same dimensions as original)
     flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
+        If the video was collected with horizontal mirroring, set True. The default is False.
 
     Returns
     -------
@@ -371,8 +397,7 @@ def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
-
-def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=True):
+def countBouts(csvPath, modelPrefix, bodyPart, midline='all', axis='x', fps=30, saveDir=None, flippedX=False, objects=None):
     """Calculate time spent in each half of arena, split along a given axis.
     
 
@@ -384,12 +409,18 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
         Name of DLC model that is level 0 of multiindex.
     bodyPart : string
         Labeled body part to use for calculations. Must be in level 1 of multiindex.
+    midLine: string
+        Body part to use for calculating position of midline, or 'all'.
     axis : string, optional
         Axis to split into zones ('x' or 'y'). The default is 'x'.
+    fps : int, optional
+        Frames per second of recording. Default 30.
     saveDir: string, optional
         Path to directory to save results. If None do not save, only return.
     flippedX : bool, optional
-        If the video was collected with horizontal mirroring, set True. The default is True.
+        If the video was collected with horizontal mirroring, set True. The default is False.
+    objects: string or list
+        Specify any labeled objects that should not be used when calculating the midline or zone times.
 
     Returns
     -------
@@ -401,10 +432,9 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
         List of frame indices in left zone.
     rightIndex: list (returned if index=True)
         List of frame indices in right zone.
-
     """
     sampleName = csvPath.split('/')[-1].split('DLC')[0]
-    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
+    left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, midline=midline, axis=axis, fps=fps, flippedX=flippedX, index=True, objects=objects)
     leftCons = consecutive(leftIndex, stepsize=1)
     rightCons = consecutive(rightIndex, stepsize=1)
     df = pd.DataFrame()
@@ -414,14 +444,20 @@ def countBouts(csvPath, modelPrefix, bodyPart, axis='x', saveDir=None, flippedX=
     rstarts = []
     for i in leftCons:
         l.append(len(i))
-        lstarts.append(i[0])
+        if len(leftCons)>=1:
+            lstarts.append(i[0])
+        else:
+            print("No left bouts found in " + sampleName)
     for i in rightCons:
         r.append(len(i))
-        rstarts.append(i[0])
+        if len(rightCons)>=1:
+            rstarts.append(i[0])
+        else:
+            print("No right bouts found in " + sampleName)
     df = pd.DataFrame([lstarts, l, rstarts, r]).T
     df.columns=['Left Bout Start Frame', 'Left Bout Length', 'Right Bout Start Frame', 'Right Bout Length']
     if saveDir:
-        df.to_csv(os.path.join(saveDir, sampleName + '_ZoneBouts.csv'))
+        df.to_csv(os.path.join(saveDir, sampleName + '_'+bodyPart+'_ZoneBouts.csv'))
     return df    
 
 def calcDistanceMA(h5File, indiv1, indiv2, bodyPart1, bodyPart2, directory=os.getcwd(), distThreshold=5):
@@ -533,6 +569,412 @@ def compareAndPlotInteractions(directory, group1, group2):
     plt.show()
     return(result)
 
+def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=None, distThreshold=None, stationary=False, coords=None):
+    """Calculate the distance between a labaled bodyPart and an object in single-animal DLC,
+    and optionally calculate # of frames bodyPart is interacting with object.
+
+    Parameters
+    ----------
+    file : string
+        Path to h5 or csv file containing tracking data.
+    bodyPart : string
+        Body part to calculate distance from.
+    obj : string
+        Name of labeled object.
+    directory : string (optional)
+        Directory to save to. Default current working directory.
+    pcutoff : float
+        Likelihood threshold, frames below this will be interpolated.
+    distThreshold : int/float (optional)
+        Pixel distance threshold to be considered interacting. The default is None (no interaction will be calculated).
+    stationary : bool
+        If the object is stationary, pass True and the average detected coordinate will be used rather than per-frame coordinate.
+    Returns
+    -------
+    Pandas dataframe of distances (optionally also interactions).
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    if pcutoff:
+        df.loc[df[(scorerName, bodyPart, 'likelihood')] < pcutoff, (scorerName, bodyPart, 'x')]=None
+        df.loc[df[(scorerName, bodyPart, 'likelihood')] < pcutoff, (scorerName, bodyPart, 'y')]=None        
+    bp1x = df[(scorerName, bodyPart, 'x')]
+    bp1x.interpolate(method='linear', inplace=True)
+    bp1y = df[(scorerName, bodyPart, 'y')]
+    bp1y.interpolate(method='linear', inplace=True)
+    bp1coords = list(zip(bp1x.tolist(), bp1y.tolist()))
+    if not coords:
+        objx = df[(scorerName, obj, 'x')]
+        objx.interpolate(method='linear', inplace=True)
+        objy = df[(scorerName, obj, 'y')]
+        objy.interpolate(method='linear', inplace=True)
+        objcoords = list(zip(objx.tolist(), objy.tolist()))
+    if stationary and not coords:
+        objx=np.mean(objx)
+        objy=np.mean(objy)
+        objcoords=(objx, objy)
+    elif stationary and coords:
+        objcoords=coords
+    dists = []
+    for i in range(len(bp1coords)):
+        if not stationary:
+            d = np.linalg.norm(np.array(bp1coords[i])-np.array(objcoords[i]))
+            dists.append(d)
+        elif stationary:
+            d = np.linalg.norm(np.array(bp1coords[i])-np.array(objcoords))
+            dists.append(d)
+    distDf = pd.DataFrame([bp1coords,objcoords,dists]).T
+    distDf.columns=[bodyPart, obj, 'Distance']
+    distDf[bodyPart+'X'], distDf[bodyPart+'Y']=distDf[bodyPart].str
+    distDf.drop(bodyPart,axis=1,inplace=True)
+    distDf['cueLight']=pd.to_numeric(distDf['cueLight'])
+    distDf['Distance']=pd.to_numeric(distDf['Distance'])
+    distDf.to_csv(os.path.join(directory, sampleName + '_EuclideanDistances.csv'))
+    distDf.to_hdf(os.path.join(directory, sampleName + '_EuclideanDistances.h5'), key='df_with_missing')
+    if distThreshold:
+        interactions = distDf.loc[distDf['Distance']<distThreshold]
+        interactions.to_csv(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.csv'))
+        interactions.to_hdf(os.path.join(directory, sampleName + '_DistThreshold' + str(distThreshold) + '_Interactions.h5'), key='df_with_missing')
+        return(interactions)
+    elif not distThreshold:
+        return(distDf)
+
+def calcVelocity(file, bodyParts, directory, window=5, returnDistance=False):
+    """Calculate velocity of bodyParts between given number of frames (window).
+    
+    Parameters
+    ----------
+    file : string
+        Path to .h5 or .csv file with data.
+    bodyParts : list or array
+        Labeled parts to calculate velocity of.
+    directory : string
+        Directory to save result.
+    window : int (optional, default 5)
+        Size of window to calculate velocity across.
+    returnDistance : bool (optional, default False)
+        Whether to also return total distance traveled
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    cat = pd.DataFrame()
+    if returnDistance:
+        dist = {}
+    if type(bodyParts)==str:
+        print("Single body part detected as string, converting to list")
+        bodyParts = [bodyParts]
+    for bp in bodyParts:
+        velocities = []
+        frames = []
+        bpx = df[(scorerName, bp, 'x')].tolist()
+        bpy = df[(scorerName, bp, 'y')].tolist()
+        lz = list(zip(bpx, bpy))
+        for i in range(window, len(lz), window):
+            velo = np.linalg.norm(np.array(lz[i])-np.array(lz[i-window]))
+            velocities.append(velo)
+            frames.append(i)
+        cat[bp]=velocities
+        if returnDistance:
+            distance=sum(cat[bp])
+            dist.update({bp:distance})
+    cat['average']=cat.mean(axis=1)
+    cat.index=frames
+    cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
+    if not returnDistance:
+        return cat
+    elif returnDistance:
+        distDf = pd.DataFrame(dist, index=[0])
+        distDf['average']=distDf.mean(axis=1)
+        distDf.to_csv(os.path.join(directory, sampleName + '_DistanceTraveled_Window' + str(window) + '.csv'))
+        return cat, distDf
+
+def plotVelocities(group1, group2, directory, window, numFiles=2, group1name=None, group2name=None):
+    g1cat = pd.DataFrame()
+    for mouse in group1:
+        for i in range(numFiles):
+            resFiles = glob.glob(os.path.join(directory, mouse + '*' + 'Velocity_Window'+str(window)+'.csv'))
+            if resFiles[i].endswith('.h5'):
+                df = pd.read_hdf(resFiles[i])
+            elif resFiles[i].endswith('.csv'):
+                df = pd.read_csv(resFiles[i], index_col=0)
+            g1cat[mouse+'_average'+str(i)]=df['average']
+    g2cat = pd.DataFrame()
+    for mouse in group2:
+        for i in range(numFiles):
+            resFiles = glob.glob(os.path.join(directory, mouse + '*' + 'Velocity_Window'+str(window)+'.csv'))
+            if resFiles[i].endswith('.h5'):
+                df = pd.read_hdf(resFiles[i])
+            elif resFiles[i].endswith('.csv'):
+                df = pd.read_csv(resFiles[i], index_col=0)
+            g2cat[mouse+'_average'+str(i)]=df['average']
+
+   #     try:
+   #         resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+   #         df = pd.read_csv(resFile1[0], index_col=0)
+   #         g1cat[mouse+'_average1']=df['average']
+   #         #df.drop('average', axis=1, inplace=True)
+   #     except IndexError:
+        #     try:
+        #         resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+        #         df = pd.read_csv(resFile1[0], index_col=0)
+        #         g1cat[mouse+'_average1']=df['average']
+        #     except IndexError:
+        #         print("No result file 1 found for " + mouse)
+        #         pass
+        # try:
+        #     resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+        #     df = pd.read_csv(resFile2[0], index_col=0)
+        #     g1cat[mouse+'_average2']=df['average']
+        # except IndexError:
+        #     try:
+        #         resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+        #         df = pd.read_csv(resFile2[0])
+        #         g1cat[mouse+'_average2']=df['average']
+        #     except IndexError:
+        #         print("No result file 2 found for " + mouse)
+        #         pass
+    # g2cat = pd.DataFrame()
+    # for mouse in group2:
+    #     try:
+    #         resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+    #         df = pd.read_csv(resFile1[0], index_col=0)
+    #         g2cat[mouse+'_average1']=df['average']
+    #         #df.drop('average', axis=1, inplace=True)
+    #     except FileNotFoundError:
+    #         try:
+    #             resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+    #             df = pd.read_csv(resFile1[0], index_col=0)
+    #             g2cat[mouse+'_average1']=df['average']
+    #         except FileNotFoundError:
+    #             print("No result file 1 found for " + mouse)
+    #             pass
+    #     try:
+    #         resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
+    #         df = pd.read_csv(resFile2[0], index_col=0)
+    #         g2cat[mouse+'_average2']=df['average']
+    #     except FileNotFoundError:
+    #         try:
+    #             resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
+    #             df = pd.read_csv(resFile2[0])
+    #             g2cat[mouse+'_average2']=df['average']
+    #         except FileNotFoundError:
+    #             print("No result file 2 found for " + mouse)
+    #             pass
+            #df.drop('average', axis=1, inplace=True)
+      #  g2cat = pd.concat([g2cat, df],axis=1)
+    g1aves=np.array(np.mean(g1cat, axis=0))
+    g2aves=np.array(np.mean(g2cat, axis=0))
+    g1mean=np.mean(g1aves)
+    g2mean=np.mean(g2aves)
+    g1sem=np.std(g1aves)/np.sqrt(g1aves.shape[0])
+    g2sem=np.std(g2aves)/np.sqrt(g2aves.shape[0])
+    err=[g1sem,g2sem]
+    pval = np.array([ttest_ind(g1aves, g2aves, nan_policy='omit')])[0][1]
+    plt.figure(figsize=(6,8))
+    if group1name:
+        plt.bar([group1name, group2name], [g1mean,g2mean], width=0.6, yerr=err, color=['lightskyblue','coral'], edgecolor='black', linewidth=3.0, ecolor='k', error_kw={'lw':3.0})
+      #  plt.legend([group1name],[group2name])
+    else:
+        plt.bar(['Group1', 'Group2'], [g1mean,g2mean], width=0.4, yerr=err, color=['b','r'], edgecolor='black', linewidth=3.0, ecolor=['r','b'])
+    plt.title(r'Average Velocity - Window ' +str(window)+" frames, p="+str(round(pval,3)), fontsize=18)
+    plt.ylabel('Mean Velocity (Frames)', fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.savefig(os.path.join(directory, 'VelocityPlot.png'))
+
+def averageArrays(arrays, axis=0, return_sem=True):
+    results = []
+    for i in range(len(arrays)):
+        ave = np.array(np.mean(arrays[i], axis=axis))
+        results.append(ave)
+        sem = np.std(ave)/np.sqrt(arrays[i].shape[axis])
+        if return_sem:
+            results.append(sem)
+    return results
+        
+   
+
+def makeObjectStationary(directory, objectName, dtype='.h5', pcutoff=0.5, file=None, returnCoords=False):
+    """If a stationary object is in the video, alter result data files to reflect it's mean position.
+    
+    Parameters
+    ----------
+    directory : str
+        Path to directory where data files are kept.
+    objectName : str
+        Label of stationary object.
+    dtype : str (optional, default .h5)
+        Type of data file to load, can be '.h5' or '.csv'
+    pcutoff : float, (optional, default 0.5)
+        Cutoff for likelihood, frames below this will be dropped to nan.
+    file : str (optional, default None)
+        Path to single file to process, otherwise all files matching dtype in directory will be processed.
+    """
+    if not os.path.exists(os.path.join(directory, 'stationary'+objectName+'/')):
+        os.mkdir(os.path.join(directory, 'stationary'+objectName+'/'))
+    files = []
+    if returnCoords:
+        mice = []
+        coords = []
+    if not file:
+        allFiles = os.listdir(directory)
+        for f in allFiles:
+            if f.endswith(dtype):
+                files.append(f)
+    elif file:
+        files = file
+        if len(files.split('/'))>1:
+            files = [os.path.basename(files)]
+    for file in files:
+        n, e = os.path.splitext(file)
+        fullpath = os.path.join(directory, file)
+        if fullpath.endswith('.h5'):
+            df = pd.read_hdf(fullpath)
+        elif fullpath.endswith('.csv'):
+            df = pd.read_csv(fullpath, header=[0,1,2], index_col=0)
+        scorerName = df.columns[0][0]
+        df.loc[df[(scorerName, objectName, 'likelihood')]<pcutoff, (scorerName, objectName, 'x')]=np.nan
+        df.loc[df[(scorerName, objectName, 'likelihood')]<pcutoff, (scorerName, objectName, 'y')]=np.nan
+        meanX = df[(scorerName, objectName, 'x')].mean()
+        meanY = df[(scorerName, objectName, 'y')].mean()
+        df[(scorerName, objectName, 'x')]=meanX
+        df[(scorerName, objectName, 'y')]=meanY
+        df[(scorerName, objectName, 'likelihood')]=1.0
+        if dtype=='.h5':
+            df.to_hdf(os.path.join(directory, 'stationary'+objectName+'/' + n + '_stationary'+objectName+e), key='df_with_missing')
+        elif dtype=='.csv':
+            df.to_csv(os.path.join(directory, 'stationary'+objectName+'/' + n + '_stationary'+objectName+e))
+        if returnCoords:
+            mice.append(n)
+            coords.append((meanX,meanY))
+            result = list(zip(mice, coords))
+    if returnCoords:
+        return result
+
+def alignToObject(h5Path, obj, coords=None):
+    """Set object position to 0,0 for all frames, and create data file with all other bodyparts coordinate distance from object.
+    
+    Parameters
+    ----------
+    h5Path : string
+        Path to .h5 file.
+    obj : string
+        Object label to align to.
+    """
+    directory = '/'.join(h5Path.split('/')[:-1])
+    fileName = h5Path.split('/')[-1]#.split('DLC')[0]
+    f, e = os.path.splitext(fileName)
+    df = pd.read_hdf(h5Path)
+    cols = df.columns
+    scorerName=cols[0][0]
+    bodyParts = []
+    for col in cols:
+        bp = col[1]
+        bodyParts.append(bp)
+    bodyParts = list(set(bodyParts)) #remove duplicates
+    df_ego = df
+    bodyParts_norm = bodyParts
+    bodyParts_norm.remove(obj)
+    if not coords:
+        for bp in bodyParts_norm: #normalize bodyparts by subtracting one from all 
+            df_ego[(scorerName, bp, 'x')] = df_ego[(scorerName, bp, 'x')] - df_ego[(scorerName, obj, 'x')] #for x position
+            df_ego[(scorerName, bp, 'y')] = df_ego[(scorerName, bp, 'y')] - df_ego[(scorerName, obj, 'y')] #for y position
+    elif coords:
+        if not isinstance(coords, tuple):
+            raise ValueError("Input coords not valid, must input (x,y) tuple.")
+        for bp in bodyParts_norm:
+            df_ego[(scorerName, bp, 'x')] = df_ego[(scorerName, bp, 'x')] - coords[0]
+            df_ego[(scorerName, bp, 'y')] = df_ego[(scorerName, bp, 'y')] - coords[1]
+    df_ego[(scorerName, obj, 'x')]=0
+    df_ego[(scorerName, obj, 'y')]=0
+    if not os.path.exists(os.path.join(directory, 'alignedTo'+obj+'/')):
+        os.mkdir(os.path.join(directory, 'alignedTo'+obj+'/'))
+    df_ego.to_hdf(os.path.join(directory, 'alignedTo'+obj+'/' + f + '_alignedTo'+obj+'.h5'), key='df_with_missing')
+
+def combineDistancesPerGroup(dataFiles, bodyPart, obj):
+    f0 = pd.read_hdf(dataFiles[0])
+    cols = f0.columns
+    bodyParts = []
+    cat = pd.DataFrame()
+    for col in cols:
+        bp = col[1]
+        bodyParts.append(bp)
+    bodyParts = list(set(bodyParts))
+    bodyParts.remove(bodyPart)
+    for i in range(len(dataFiles)):
+        df = pd.read_hdf(dataFiles[i])
+        df.drop(obj, axis=1, level=1, inplace=True)
+        for bp in bodyParts:
+            df.drop(bp, axis=1, level=1, inplace=True)
+        cat = pd.concat([cat, df],axis=0,ignore_index=True)
+    return(cat)
+
+def compareAndPlotInteractions(directory, group1, group2):
+    """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.
+
+    Parameters
+    ----------
+    directory : string (optional)
+        Directory containing interaction data.
+    group1 : list of strings
+        Trial IDs for group 1.
+    group22 : string
+        Trial IDs for group 2.
+
+    Returns
+    -------
+    Pandas dataframe of results. Also saves bar graph.
+
+    """
+    
+    files = os.listdir(directory)
+    samplesG1 = []
+    countsG1 = []
+    samplesG2 = []
+    countsG2 = []
+    for f in files:
+        if f.endswith('_Interactions.csv'):
+            sampleName = f.split('/')[0].split('_Dist')[0]
+            df = pd.read_csv(os.path.join(directory, f), index_col=0)
+            count = df.shape[0]
+            if sampleName in group1:
+                samplesG1.append(sampleName)
+                countsG1.append(count)
+            elif sampleName in group2:
+                samplesG2.append(sampleName)
+                countsG2.append(count)
+                
+    g1_arr = np.array(countsG1)
+    g2_arr = np.array(countsG2)
+    g1mean = np.mean(countsG1)
+    g2mean = np.mean(countsG2)
+    g1sem = np.std(countsG1)/np.sqrt(len(countsG1))
+    g2sem = np.std(countsG2)/np.sqrt(len(countsG2))
+    err = [g1sem, g2sem]
+    pval = np.array([ttest_ind(g1_arr, g2_arr, nan_policy='omit')])[0][1]
+    fdr_pass,qvals,_,_ = multipletests(pval, method='fdr_bh',alpha=0.05)
+    
+    res = [g1mean, g2mean, g1sem, g2sem, pval]
+    resNames = ['Group1_Mean', 'Group2_Mean', 'Group1_SEM', 'Group2_SEM', 't-test p-value']
+    result = pd.DataFrame([samplesG1, countsG1, samplesG2, countsG2, resNames, res]).T
+    result.columns=['Trial_Group1', 'InteractionCount_Group1', 'Trial_Group2', 'InteractionCount_Group2', 'Statistic', 'Value']
+    result.to_csv(os.path.join(directory, 'Combined_InteractionCounts.csv'))
+
+    plt.figure()
+    plt.bar(['Group1','Group2'],[g1mean, g2mean])
+    plt.errorbar(['Group1', 'Group2'], [g1mean, g2mean], yerr=err, fmt='o', color='r')
+    plt.ylabel('# Frames Interacting', fontsize=16)
+    plt.savefig(os.path.join(directory, 'InteractionFrames.png'))
+    plt.show()
+    return(result)
+
 def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=None, distThreshold=None, stationary=False):
     """Calculate the distance between a labaled bodyPart and an object in single-animal DLC,
     and optionally calculate # of frames bodyPart is interacting with object.
@@ -621,9 +1063,6 @@ def calcVelocity(file, bodyParts, directory, window=5):
     sampleName = file.split('/')[-1].split('DLC')[0]
     scorerName = df.columns[0][0]
     cat = pd.DataFrame()
-    if type(bodyParts)==str:
-        print("Single body part detected as string, converting to list")
-        bodyParts = [bodyParts]
     for bp in bodyParts:
         velocities = []
         frames = []
@@ -639,82 +1078,6 @@ def calcVelocity(file, bodyParts, directory, window=5):
     cat.index=frames
     cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
     return(cat)
-
-def plotVelocities(group1, group2, directory, window, group1name=None, group2name=None):
-    g1cat = pd.DataFrame()
-    for mouse in group1:
-        try:
-            resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
-            df = pd.read_csv(resFile1[0], index_col=0)
-            g1cat[mouse+'_average1']=df['average']
-            #df.drop('average', axis=1, inplace=True)
-        except IndexError:
-            try:
-                resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
-                df = pd.read_csv(resFile1[0], index_col=0)
-                g1cat[mouse+'_average1']=df['average']
-            except IndexError:
-                print("No result file 1 found for " + mouse)
-                pass
-        try:
-            resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
-            df = pd.read_csv(resFile2[0], index_col=0)
-            g1cat[mouse+'_average2']=df['average']
-        except IndexError:
-            try:
-                resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
-                df = pd.read_csv(resFile2[0])
-                g1cat[mouse+'_average2']=df['average']
-            except IndexError:
-                print("No result file 2 found for " + mouse)
-                pass
-    g2cat = pd.DataFrame()
-    for mouse in group2:
-        try:
-            resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
-            df = pd.read_csv(resFile1[0], index_col=0)
-            g2cat[mouse+'_average1']=df['average']
-            #df.drop('average', axis=1, inplace=True)
-        except FileNotFoundError:
-            try:
-                resFile1 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
-                df = pd.read_csv(resFile1[0], index_col=0)
-                g2cat[mouse+'_average1']=df['average']
-            except FileNotFoundError:
-                print("No result file 1 found for " + mouse)
-                pass
-        try:
-            resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.csv'))
-            df = pd.read_csv(resFile2[0], index_col=0)
-            g2cat[mouse+'_average2']=df['average']
-        except FileNotFoundError:
-            try:
-                resFile2 = glob.glob(os.path.join(directory, mouse + '_Saline_baseline_2_SideProfile' + '*' + 'Velocity_Window'+str(window)+'.h5'))
-                df = pd.read_csv(resFile2[0])
-                g2cat[mouse+'_average2']=df['average']
-            except FileNotFoundError:
-                print("No result file 2 found for " + mouse)
-                pass
-            #df.drop('average', axis=1, inplace=True)
-      #  g2cat = pd.concat([g2cat, df],axis=1)
-    g1aves=np.array(np.mean(g1cat, axis=0))
-    g2aves=np.array(np.mean(g2cat, axis=0))
-    g1mean=np.mean(g1aves)
-    g2mean=np.mean(g2aves)
-    g1sem=np.std(g1aves)/np.sqrt(g1aves.shape[0])
-    g2sem=np.std(g2aves)/np.sqrt(g2aves.shape[0])
-    err=[g1sem,g2sem]
-    pval = np.array([ttest_ind(g1aves, g2aves, nan_policy='omit')])[0][1]
-    plt.figure(figsize=(6,8))
-    if group1name:
-        plt.bar([group1name, group2name], [g1mean,g2mean], width=0.6, yerr=err, color=['lightskyblue','coral'], edgecolor='black', linewidth=3.0, ecolor='k', error_kw={'lw':3.0})
-      #  plt.legend([group1name],[group2name])
-    else:
-        plt.bar(['Group1', 'Group2'], [g1mean,g2mean], width=0.4, yerr=err, color=['b','r'], edgecolor='black', linewidth=3.0, ecolor=['r','b'])
-    plt.title(r'Average Velocity - Window ' +str(window)+" frames, p="+str(round(pval,3)), fontsize=18)
-    plt.ylabel('Mean Velocity (Frames)', fontsize=16)
-    plt.xticks(fontsize=16)
-    plt.savefig(os.path.join(directory, 'VelocityPlot.png'))
 
 def makeObjectStationary(directory, objectName, dtype='.h5', pcutoff=0.5, file=None):
     """If a stationary object is in the video, alter result data files to reflect it's mean position.
@@ -811,4 +1174,174 @@ def combineDistancesPerGroup(dataFiles, bodyPart, obj):
             df.drop(bp, axis=1, level=1, inplace=True)
         cat = pd.concat([cat, df],axis=0,ignore_index=True)
     return(cat)
+
+def compareAndPlotInteractions(directory, group1, group2):
+    """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.
+
+    Parameters
+    ----------
+    directory : string (optional)
+        Directory containing interaction data.
+    group1 : list of strings
+        Trial IDs for group 1.
+    group22 : string
+        Trial IDs for group 2.
+
+    Returns
+    -------
+    Pandas dataframe of results. Also saves bar graph.
+
+    """
+    
+    files = os.listdir(directory)
+    samplesG1 = []
+    countsG1 = []
+    samplesG2 = []
+    countsG2 = []
+    for f in files:
+        if f.endswith('_Interactions.csv'):
+            sampleName = f.split('/')[0].split('_Dist')[0]
+            df = pd.read_csv(os.path.join(directory, f), index_col=0)
+            count = df.shape[0]
+            if sampleName in group1:
+                samplesG1.append(sampleName)
+                countsG1.append(count)
+            elif sampleName in group2:
+                samplesG2.append(sampleName)
+                countsG2.append(count)
+                
+    g1_arr = np.array(countsG1)
+    g2_arr = np.array(countsG2)
+    g1mean = np.mean(countsG1)
+    g2mean = np.mean(countsG2)
+    g1sem = np.std(countsG1)/np.sqrt(len(countsG1))
+    g2sem = np.std(countsG2)/np.sqrt(len(countsG2))
+    err = [g1sem, g2sem]
+    pval = np.array([ttest_ind(g1_arr, g2_arr, nan_policy='omit')])[0][1]
+    fdr_pass,qvals,_,_ = multipletests(pval, method='fdr_bh',alpha=0.05)
+    
+    res = [g1mean, g2mean, g1sem, g2sem, pval]
+    resNames = ['Group1_Mean', 'Group2_Mean', 'Group1_SEM', 'Group2_SEM', 't-test p-value']
+    result = pd.DataFrame([samplesG1, countsG1, samplesG2, countsG2, resNames, res]).T
+    result.columns=['Trial_Group1', 'InteractionCount_Group1', 'Trial_Group2', 'InteractionCount_Group2', 'Statistic', 'Value']
+    result.to_csv(os.path.join(directory, 'Combined_InteractionCounts.csv'))
+
+def calcVelocity(file, bodyParts, directory, window=5):
+    """Calculate velocity of bodyParts between given number of frames (window).
+    
+    Parameters
+    ----------
+    file : string
+        Path to .h5 or .csv file with data.
+    bodyParts : list or array
+        Labeled parts to calculate velocity of.
+    directory : string
+        Directory to save result.
+    window : int (optional, default 5)
+        Size of window to calculate velocity across.
+    """
+    if file.endswith('.h5'):
+        df = pd.read_hdf(file)
+    elif file.endswith('.csv'):
+        df = pd.read_csv(file, header=[0,1,2], index_col=0)
+    sampleName = file.split('/')[-1].split('DLC')[0]
+    scorerName = df.columns[0][0]
+    cat = pd.DataFrame()
+    for bp in bodyParts:
+        velocities = []
+        frames = []
+        bpx = df[(scorerName, bp, 'x')].tolist()
+        bpy = df[(scorerName, bp, 'y')].tolist()
+        lz = list(zip(bpx, bpy))
+        for i in range(window, len(lz), window):
+            velo = np.linalg.norm(np.array(lz[i])-np.array(lz[i-window]))
+            velocities.append(velo)
+            frames.append(i)
+        cat[bp]=velocities
+    cat['average']=cat.mean(axis=1)
+    cat.index=frames
+    cat.to_csv(os.path.join(directory, sampleName + '_Velocity_Window' + str(window) + '.csv'))
+    return(cat)
+
+def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
+    cfg = auxiliaryfunctions.read_config(config)
+    if not iteration:
+        it=cfg['iteration']
+    elif iteration:
+        it = iteration
+    projectPath = cfg['project_path']
+    evalPath = os.path.join(projectPath, 'evaluation-results')
+    df = pd.read_csv(os.path.join(evalPath, 'iteration-'+str(it), 'CombinedEvaluation-results.csv'), index_col=0)
+    ticks = df['Training iterations:'].tolist()
+    fig, ax = plt.subplots()
+    df.plot(kind='line', x='Training iterations:', y=' Train error(px)', color='blue', legend=True, ax=ax)
+    df.plot(kind='line', x='Training iterations:', y=' Test error(px)', color='red', legend=True, ax=ax)
+    df.plot(kind='line', x='Training iterations:', y='Train error with p-cutoff', color='green', legend=True, ax=ax)
+    df.plot(kind='line', x='Training iterations:', y='Test error with p-cutoff', color='orange', legend=True, ax=ax)
+    plt.xticks(ticks=ticks, rotation=45)
+    ax.set_ylabel('Error (px)', fontsize=18)
+    ax.set_xlabel('Iteration', fontsize=18)
+    fig.savefig(os.path.join(evalPath, 'iteration-'+str(it),'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
+        
+def sortFiles(directory, prefixes, extensions):
+    files = os.listdir(directory)
+    groupPaths = []
+    for group in prefixes:
+        if not os.path.exists(os.path.join(directory, group)):
+            os.mkdir(os.path.join(directory, group))
+            groupPaths.append(os.path.join(directory, group))
+    for ext in extensions:
+        for group in prefixes:
+            if not os.path.exists(os.path.join(directory, group, ext)):
+                os.mkdir(os.path.join(directory, group, ext))
+    for file in files:
+        for group in prefixes:
+            if file.startswith(group):
+                f, e = os.path.splitext(file)
+                shutil.copy(os.path.join(directory, file), os.path.join(directory, group, e.strip('.')))
+
+def checkLabelSD(config, drop=None):
+    cfg = auxiliaryfunctions.read_config(config)
+    videos = cfg['video_sets']
+    projectPath = cfg['project_path']
+    scorer = cfg['scorer']
+    it = cfg['iteration']
+    dataPath = os.path.join(projectPath, 'labeled-data')
+    folds = os.listdir(dataPath)
+    cat = pd.DataFrame()
+    for f in folds:
+        if not f.endswith('_labeled'):
+            df = pd.read_hdf(os.path.join(dataPath, f, 'CollectedData_'+scorer+'.h5'))
+            if drop:
+                df.drop((scorer, drop), axis=1, inplace=True)
+            dfx = df.iloc[:,::2]
+            dfy = df.iloc[:,1::2]
+            xdata = np.array(dfx)
+            ydata = np.array(dfy)
+            xstd = np.nanstd(xdata, axis=1)
+            ystd = np.nanstd(ydata, axis=1)
+            stdDf = pd.DataFrame(xstd, ystd).reset_index()
+            stdDf.columns=['X','Y']
+            stdDf.index=df.index
+            cat = pd.concat([cat, stdDf], axis=0)
+    cat.to_csv(os.path.join(projectPath, 'labeledData_StDevs_iter'+str(it)+'.csv'))
+
+def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
+    cfg = auxiliaryfunctions.read_config(config)
+    if not pcutoff:
+        pcutoff=cfg['pcutoff']
+    h5s = glob.glob(os.path.join(resultDirectory, '*.h5'))
+    info = []
+    for f in h5s:
+        fileName = os.path.basename(f)
+        session = fileName.split('DLC')[0]
+        df = pd.read_hdf(f)
+        scorer=df.columns[0][0]
+        objFrames = df.loc[df[(scorer, obj, 'likelihood')]>pcutoff]
+        if objFrames.shape[0]>0:
+            startFrame=objFrames.index[0]
+        else:
+            startFrame=0
+        info.append((fileName, startFrame, objFrames.shape[0]))
+    return sorted(info)
 

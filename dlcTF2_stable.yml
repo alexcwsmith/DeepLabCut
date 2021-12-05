@@ -1,0 +1,19 @@
+name: dlcTF2
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - pandas
+  - cudnn==8.1.0.77=h90431f1_0
+  - python=3.8
+  - scikit-image
+  - spyder
+  - seaborn
+  - numpy
+  - opencv
+  - scikit-learn
+  - cudatoolkit==11.2.2=he111cf0_8
+  - scipy
+  - wxpython==4.0.7.post2=py38hac52f33_3
+

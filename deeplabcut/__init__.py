@@ -13,13 +13,7 @@ import os
 # Suppress tensorflow warning messages
 import tensorflow as tf
 
-vers = (tf.__version__).split(".")
-if int(vers[0]) == 1 and int(vers[1]) > 12:
-    TF = tf.compat.v1  # behaves differently before 1.13
-else:
-    TF = tf
-
-TF.logging.set_verbosity(TF.logging.ERROR)
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 DEBUG = True and "DEBUG" in os.environ and os.environ["DEBUG"]
 from deeplabcut import DEBUG
 
@@ -32,13 +26,7 @@ try:
     mpl.use("WxAgg")
     from deeplabcut import generate_training_dataset
     from deeplabcut import refine_training_dataset
-    from deeplabcut.generate_training_dataset import (
-        dropannotationfileentriesduetodeletedimages,
-        comparevideolistsanddatafolders,
-        dropimagesduetolackofannotation,
-        adddatasetstovideolistandviceversa,
-        dropduplicatesinannotatinfiles,
-    )
+
     from deeplabcut.gui import select_crop_parameters
     from deeplabcut.gui.launch_script import launch_dlc
     from deeplabcut.gui.label_frames import label_frames
@@ -46,7 +34,8 @@ try:
     from deeplabcut.gui.tracklet_toolbox import refine_tracklets
 
     from deeplabcut.utils.skeleton import SkeletonBuilder
-except ModuleNotFoundError:
+    print("Imported DLC forked from alexcwsmith, last rebased 9/18/21")
+except (ModuleNotFoundError, ImportError):
     print(
         "DLC loaded in light mode; you cannot use any GUI (labeling, relabeling and standalone GUI)"
     )
@@ -72,7 +61,13 @@ from deeplabcut.generate_training_dataset import (
 from deeplabcut.generate_training_dataset import (
     create_training_model_comparison,
     create_multianimaltraining_dataset,
-    cropimagesandlabels,
+)
+from deeplabcut.generate_training_dataset import (
+    dropannotationfileentriesduetodeletedimages,
+    comparevideolistsanddatafolders,
+    dropimagesduetolackofannotation,
+    adddatasetstovideolistandviceversa,
+    dropduplicatesinannotatinfiles,
 )
 from deeplabcut.utils import (
     create_labeled_video,
@@ -86,8 +81,12 @@ from deeplabcut.utils import (
     auxfun_videos,
 )
 
-from deeplabcut.utils.auxfun_videos import ShortenVideo, DownSampleVideo, CropVideo
-
+from deeplabcut.utils.auxfun_videos import (
+    ShortenVideo,
+    DownSampleVideo,
+    CropVideo,
+    check_video_integrity,
+)
 
 # Train, evaluate & predict functions / all require TF
 from deeplabcut.pose_estimation_tensorflow import (
@@ -114,8 +113,11 @@ from deeplabcut.pose_estimation_3d import (
 )
 
 from deeplabcut.refine_training_dataset.stitch import stitch_tracklets
-from deeplabcut.refine_training_dataset.tracklets import convert_raw_tracks_to_h5
-from deeplabcut.refine_training_dataset import extract_outlier_frames, merge_datasets, check_labeled_frames_analysis_likelihoods
+from deeplabcut.refine_training_dataset import (
+    extract_outlier_frames,
+    merge_datasets,
+    find_outliers_in_raw_data,
+)
 from deeplabcut.post_processing import filterpredictions, analyzeskeleton
 
 

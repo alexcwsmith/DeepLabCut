@@ -7,18 +7,18 @@ Please see AUTHORS for contributors.
 https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
+import math
 import logging
 import os
 import os.path
-import shutil
 
 from functools import lru_cache
 from pathlib import Path
+from PIL import Image
 
 import numpy as np
 import pandas as pd
 import yaml
-from skimage import io
 
 from deeplabcut.pose_estimation_tensorflow import training
 from deeplabcut.utils import (
@@ -288,15 +288,15 @@ def cropimagesandlabels(
     indexlength = int(np.ceil(np.log10(numcrops)))
     project_path = os.path.dirname(config)
     cfg = auxiliaryfunctions.read_config(config)
-    videos = cfg.get("video_sets_original")
-    if videos is None:
-        videos = cfg["video_sets"]
+    videos = list(cfg.get("video_sets_original", []))
+    if not videos:
+        videos = list(cfg["video_sets"])
     elif excludealreadycropped:
-        for video in list(videos):
+        for video in videos:
             _, ext = os.path.splitext(video)
             s = video.replace(ext, f"_cropped{ext}")
             if s in cfg["video_sets"]:
-                videos.pop(video)
+                videos.remove(video)
     if not videos:
         return
 
@@ -305,7 +305,7 @@ def cropimagesandlabels(
     ):  # this dict is kept for storing links to original full-sized videos
         cfg["video_sets_original"] = {}
 
-    for video in list(videos):
+    for video in videos:
         vidpath, vidname, videotype = _robust_path_split(video)
         folder = os.path.join(project_path, "labeled-data", vidname)
         if userfeedback:
@@ -346,41 +346,94 @@ def cropimagesandlabels(
             for i in trange(len(ic)):
                 frame = ic[i]
                 h, w = np.shape(frame)[:2]
-                if temp_size[0] >= h or temp_size[1] >= w:
-                    raise ValueError("Crop dimensions are larger than image size")
 
                 imagename = os.path.relpath(ic.files[i], project_path)
                 ind = np.flatnonzero(df.index == imagename)[0]
                 cropindex = 0
                 attempts = -1
                 while cropindex < numcrops:
+
                     dd = np.array(data[ind].copy(), dtype=float)
-                    y0, x0 = (
-                        np.random.randint(h - temp_size[0]),
-                        np.random.randint(w - temp_size[1]),
-                    )
-                    y1 = y0 + temp_size[0]
-                    x1 = x0 + temp_size[1]
-                    with np.errstate(invalid="ignore"):
-                        within = np.all((dd >= [x0, y0]) & (dd < [x1, y1]), axis=1)
-                    if cropdata:
-                        dd[within] -= [x0, y0]
-                        dd[~within] = np.nan
-                    attempts += 1
-                    if within.any() or attempts > 10:
-                        newimname = str(
-                            Path(imagename).stem
-                            + "c"
-                            + str(cropindex).zfill(indexlength)
-                            + ".png"
+
+                    if temp_size[0] >= h or temp_size[1] >= w:
+                        # initialize a all zero image container with target crop size
+
+                        padded_img = np.zeros(
+                            (temp_size[0], temp_size[1], 3), dtype=np.uint8
                         )
-                        cropppedimgname = os.path.join(new_folder, newimname)
-                        io.imsave(cropppedimgname, frame[y0:y1, x0:x1])
-                        cropindex += 1
-                        pd_index.append(
-                            os.path.join("labeled-data", new_vidname, newimname)
+
+                        # new upper left, border protection
+                        # be careful crop side can be smaller than one side of the image
+
+                        y0, x0 = (
+                            np.random.randint(max(temp_size[0] - h, 1)),
+                            np.random.randint(max(temp_size[1] - w, 1)),
                         )
-                        AnnotationData.append(dd.flatten())
+                        # new bottom right, border protection
+                        # avoid to exceed the container's border
+
+                        y1 = min(y0 + h, temp_size[0])
+                        x1 = min(x0 + w, temp_size[1])
+
+                        # fill original image to the container image
+                        # use safe upper left and bottom right to crop original image and fill it to the container
+                        padded_img[y0:y1, x0:x1, :] = frame[: y1 - y0, : x1 - x0, :3]
+
+                        # all keypoints are shifted by +x0 and +y0
+                        # possibly out of border again
+                        dd += [x0, y0]
+
+                        # some keypoints are out of the borders
+                        with np.errstate(invalid="ignore"):
+                            within = np.all((dd >= [x0, y0]) & (dd < [x1, y1]), axis=1)
+
+                        if cropdata:
+                            dd[~within] = np.nan
+                        attempts += 1
+                        if within.any() or attempts > 10:
+                            newimname = str(
+                                Path(imagename).stem
+                                + "c"
+                                + str(cropindex).zfill(indexlength)
+                                + ".png"
+                            )
+                            cropppedimgname = os.path.join(new_folder, newimname)
+                            # save the padded img
+                            io.imsave(cropppedimgname, padded_img)
+                            cropindex += 1
+                            pd_index.append(
+                                os.path.join("labeled-data", new_vidname, newimname)
+                            )
+                            AnnotationData.append(dd.flatten())
+
+                    else:
+                        y0, x0 = (
+                            np.random.randint(h - temp_size[0]),
+                            np.random.randint(w - temp_size[1]),
+                        )
+                        y1 = y0 + temp_size[0]
+                        x1 = x0 + temp_size[1]
+
+                        with np.errstate(invalid="ignore"):
+                            within = np.all((dd >= [x0, y0]) & (dd < [x1, y1]), axis=1)
+                        if cropdata:
+                            dd[within] -= [x0, y0]
+                            dd[~within] = np.nan
+                        attempts += 1
+                        if within.any() or attempts > 10:
+                            newimname = str(
+                                Path(imagename).stem
+                                + "c"
+                                + str(cropindex).zfill(indexlength)
+                                + ".png"
+                            )
+                            cropppedimgname = os.path.join(new_folder, newimname)
+                            io.imsave(cropppedimgname, frame[y0:y1, x0:x1])
+                            cropindex += 1
+                            pd_index.append(
+                                os.path.join("labeled-data", new_vidname, newimname)
+                            )
+                            AnnotationData.append(dd.flatten())
 
             if cropdata:
                 df = pd.DataFrame(AnnotationData, index=pd_index, columns=df.columns)
@@ -494,7 +547,7 @@ def check_labels(
 
 
 def boxitintoacell(joints):
-    """ Auxiliary function for creating matfile."""
+    """Auxiliary function for creating matfile."""
     outer = np.array([[None]], dtype=object)
     outer[0, 0] = np.array(joints, dtype="int64")
     return outer
@@ -530,7 +583,13 @@ def MakeTrain_pose_yaml(
 
 
 def MakeTest_pose_yaml(
-    dictionary, keys2save, saveasfile, nmsradius=None, minconfidence=None
+    dictionary,
+    keys2save,
+    saveasfile,
+    nmsradius=None,
+    minconfidence=None,
+    sigma=None,
+    locref_smooth=None,
 ):
     dict_test = {}
     for key in keys2save:
@@ -541,6 +600,10 @@ def MakeTest_pose_yaml(
         dict_test["nmsradius"] = nmsradius
     if minconfidence is not None:
         dict_test["minconfidence"] = minconfidence
+    if sigma is not None:
+        dict_test["sigma"] = sigma
+    if locref_smooth is not None:
+        dict_test["locref_smooth"] = locref_smooth
 
     dict_test["scoremap_dir"] = "test"
     with open(saveasfile, "w") as f:
@@ -559,7 +622,14 @@ def MakeInference_yaml(itemstochange, saveasconfigfile, defaultconfigfile):
 
 def _robust_path_split(path):
     sep = "\\" if "\\" in path else "/"
-    parent, file = path.rsplit(sep, 1)
+    splits = path.rsplit(sep, 1)
+    if len(splits) == 1:
+        parent = "."
+        file = splits[0]
+    elif len(splits) == 2:
+        parent, file = splits
+    else:
+        raise ("Unknown filepath split for path {}".format(path))
     filename, ext = os.path.splitext(file)
     return parent, filename, ext
 
@@ -586,8 +656,7 @@ def merge_annotateddatasets(cfg, trainingsetfolder_full, windows2linux):
         except FileNotFoundError:
             print(
                 file_path,
-                " not found (perhaps not annotated). If training on cropped data, "
-                "make sure to call `cropimagesandlabels` prior to creating the dataset.",
+                " not found (perhaps not annotated)."
             )
 
     if not len(AnnotationData):
@@ -642,9 +711,16 @@ def merge_annotateddatasets(cfg, trainingsetfolder_full, windows2linux):
     return AnnotationData
 
 
-def SplitTrials(trialindex, trainFraction=0.8):
-    """ Split a trial index into train and test sets. Also checks that the trainFraction is a two digit number between 0 an 1. The reason
-    is that the folders contain the trainfraction as int(100*trainFraction). """
+def SplitTrials(
+    trialindex,
+    trainFraction=0.8,
+    enforce_train_fraction=False,
+):
+    """Split a trial index into train and test sets. Also checks that the trainFraction is a two digit number between 0 an 1. The reason
+    is that the folders contain the trainfraction as int(100*trainFraction).
+    If enforce_train_fraction is True, train and test indices are padded with -1
+    such that the ratio of their lengths is exactly the desired train fraction.
+    """
     if trainFraction > 1 or trainFraction < 0:
         print(
             "The training fraction should be a two digit number between 0 and 1; i.e. 0.95. Please change accordingly."
@@ -657,12 +733,52 @@ def SplitTrials(trialindex, trainFraction=0.8):
         )
         return ([], [])
     else:
-        trainsetsize = int(len(trialindex) * round(trainFraction, 2))
+        index_len = len(trialindex)
+        train_fraction = round(trainFraction, 2)
+        train_size = index_len * train_fraction
         shuffle = np.random.permutation(trialindex)
-        testIndices = shuffle[trainsetsize:]
-        trainIndices = shuffle[:trainsetsize]
+        test_indices = shuffle[int(train_size) :]
+        train_indices = shuffle[: int(train_size)]
+        if enforce_train_fraction and not train_size.is_integer():
+            train_indices, test_indices = pad_train_test_indices(
+                train_indices, test_indices, train_fraction,
+            )
+            # Determine the index length required to guarantee
+            # the train–test ratio is exactly the desired one.
+            min_length_req = int(100 / math.gcd(100, int(round(100 * train_fraction))))
+            length_req = math.ceil(index_len / min_length_req) * min_length_req
+            n_train = int(round(length_req * train_fraction))
+            n_test = length_req - n_train
+            # Pad indices so lengths agree
+            train_indices = np.append(
+                train_indices, [-1] * (n_train - len(train_indices))
+            )
+            test_indices = np.append(test_indices, [-1] * (n_test - len(test_indices)))
+        return train_indices, test_indices
 
-        return (trainIndices, testIndices)
+
+def pad_train_test_indices(train_inds, test_inds, train_fraction):
+    n_train_inds = len(train_inds)
+    n_test_inds = len(test_inds)
+    index_len = n_train_inds + n_test_inds
+    if n_train_inds / index_len == train_fraction:
+        return
+
+    # Determine the index length required to guarantee
+    # the train–test ratio is exactly the desired one.
+    min_length_req = int(100 / math.gcd(100, int(round(100 * train_fraction))))
+    min_n_train = int(round(min_length_req * train_fraction))
+    min_n_test = min_length_req - min_n_train
+    mult = max(
+        math.ceil(n_train_inds / min_n_train),
+        math.ceil(n_test_inds / min_n_test),
+    )
+    n_train = mult * min_n_train
+    n_test = mult * min_n_test
+    # Pad indices so lengths agree
+    train_inds = np.append(train_inds, [-1] * (n_train - n_train_inds))
+    test_inds = np.append(test_inds, [-1] * (n_test - n_test_inds))
+    return train_inds, test_inds
 
 
 def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
@@ -736,7 +852,11 @@ def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
     if uniform == True:
         TrainingFraction = cfg["TrainingFraction"]
         trainFraction = TrainingFraction[trainindex]
-        trainIndices, testIndices = SplitTrials(range(len(Data.index)), trainFraction)
+        trainIndices, testIndices = SplitTrials(
+            range(len(Data.index)),
+            trainFraction,
+            True,
+        )
     else:  # leave one folder out split
         videos = cfg["video_sets"].keys()
         test_video_name = [Path(i).stem for i in videos][trainindex]
@@ -754,8 +874,11 @@ def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
 
 
 @lru_cache(maxsize=None)
-def _read_image_shape_fast(path):
-    return io.imread(path).shape
+def read_image_shape_fast(path):
+    # Blazing fast and does not load the image into memory
+    with Image.open(path) as img:
+        width, height = img.size
+        return len(img.getbands()), height, width
 
 
 def format_training_data(df, train_inds, nbodyparts, project_path):
@@ -771,18 +894,15 @@ def format_training_data(df, train_inds, nbodyparts, project_path):
         data = dict()
         filename = df.index[i]
         data["image"] = filename
-        img_shape = _read_image_shape_fast(os.path.join(project_path, filename))
-        try:
-            data["size"] = img_shape[2], img_shape[0], img_shape[1]
-        except IndexError:
-            data["size"] = 1, img_shape[0], img_shape[1]
+        img_shape = read_image_shape_fast(os.path.join(project_path, filename))
+        data["size"] = img_shape
         temp = df.iloc[i].values.reshape(-1, 2)
         joints = np.c_[range(nbodyparts), temp]
         joints = joints[~np.isnan(joints).any(axis=1)].astype(int)
         # Check that points lie within the image
         inside = np.logical_and(
-            np.logical_and(joints[:, 1] < img_shape[1], joints[:, 1] > 0),
-            np.logical_and(joints[:, 2] < img_shape[0], joints[:, 2] > 0),
+            np.logical_and(joints[:, 1] < img_shape[2], joints[:, 1] > 0),
+            np.logical_and(joints[:, 2] < img_shape[1], joints[:, 2] > 0),
         )
         if not all(inside):
             joints = joints[inside]
@@ -812,6 +932,7 @@ def create_training_dataset(
     testIndices=None,
     net_type=None,
     augmenter_type=None,
+    posecfg_template=None,
 ):
     """
     Creates a training dataset. Labels from all the extracted frames are merged into a single .h5 file.\n
@@ -852,6 +973,10 @@ def create_training_dataset(
 
     augmenter_type: string
         Type of augmenter. Currently default, imgaug, tensorpack, and deterministic are supported.
+        
+    posecfg_template: string (optional, default=None)
+        Path to a pose_cfg.yaml file to use as a template for generating the new one for the current iteration. Useful if you
+        would like to start with the same parameters a previous training iteration. None uses the default pose_cfg.yaml.
 
     Example
     --------
@@ -864,6 +989,16 @@ def create_training_dataset(
 
     # Loading metadata from config file:
     cfg = auxiliaryfunctions.read_config(config)
+    if posecfg_template:
+        if not posecfg_template.endswith("pose_cfg.yaml"):
+            raise NameError(
+                "prior_posecfg argument must contain path to a pose_cfg.yaml file"
+            )
+        else:
+            print("Reloading pose_cfg parameters from " + posecfg_template +'\n')
+            from deeplabcut.utils.auxiliaryfunctions import read_plainconfig
+
+            prior_cfg = read_plainconfig(posecfg_template)
     if cfg.get("multianimalproject", False):
         from deeplabcut.generate_training_dataset.multiple_individuals_trainingsetmanipulation import (
             create_multianimaltraining_dataset,
@@ -909,21 +1044,31 @@ def create_training_dataset(
                 # updating variable if null/None! #backwardscompatability
                 auxiliaryfunctions.edit_config(config, {"default_augmenter": "imgaug"})
                 augmenter_type = "imgaug"
-        else:
-            if augmenter_type in [
-                "default",
-                "scalecrop",
-                "imgaug",
-                "tensorpack",
-                "deterministic",
-            ]:
-                pass
-            else:
-                raise ValueError("Invalid augmenter type:", augmenter_type)
+        elif augmenter_type not in [
+            "default",
+            "scalecrop",
+            "imgaug",
+            "tensorpack",
+            "deterministic",
+        ]:
+            raise ValueError("Invalid augmenter type:", augmenter_type)
+
+        if posecfg_template:
+            if net_type != prior_cfg["net_type"]:
+                print(
+                    "WARNING: Specified net_type does not match net_type from posecfg_template path entered. Proceed with caution."
+                )
+            if augmenter_type != prior_cfg["dataset_type"]:
+                print(
+                    "WARNING: Specified augmenter_type does not match dataset_type from posecfg_template path entered. Proceed with caution."
+                )
 
         # Loading the encoder (if necessary downloading from TF)
         dlcparent_path = auxiliaryfunctions.get_deeplabcut_path()
-        defaultconfigfile = os.path.join(dlcparent_path, "pose_cfg.yaml")
+        if not posecfg_template:
+            defaultconfigfile = os.path.join(dlcparent_path, "pose_cfg.yaml")
+        elif posecfg_template:
+            defaultconfigfile = posecfg_template
         model_path, num_shuffles = auxfun_models.Check4weights(
             net_type, Path(dlcparent_path), num_shuffles
         )
@@ -959,6 +1104,12 @@ def create_training_dataset(
                 print(
                     f"You passed a split with the following fraction: {int(100 * trainFraction)}%"
                 )
+                # Now that the training fraction is guaranteed to be correct,
+                # the values added to pad the indices are removed.
+                train_inds = np.asarray(train_inds)
+                train_inds = train_inds[train_inds != -1]
+                test_inds = np.asarray(test_inds)
+                test_inds = test_inds[test_inds != -1]
                 splits.append(
                     (trainFraction, Shuffles[shuffle], (train_inds, test_inds))
                 )
@@ -1090,11 +1241,12 @@ def create_training_dataset(
                 print(
                     "The training dataset is successfully created. Use the function 'train_network' to start training. Happy training!"
                 )
+
         return splits
 
 
 def get_largestshuffle_index(config):
-    """ Returns the largest shuffle for all dlc-models in the current iteration."""
+    """Returns the largest shuffle for all dlc-models in the current iteration."""
     cfg = auxiliaryfunctions.read_config(config)
     project_path = cfg["project_path"]
     iterate = "iteration-" + str(cfg["iteration"])

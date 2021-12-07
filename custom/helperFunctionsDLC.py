@@ -808,6 +808,25 @@ def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=Non
         return(distDf)
 
 def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
+    """Plot training loss.
+    
+
+    Parameters
+    ----------
+    config : string
+        Path to config file.
+    iteration : int, optional
+        Iteration number to plot. Default None reads from config file.
+    imagetype : string, optional
+        Image format to save. The default is '.png'.
+    resolution : int, optional
+        dpi to save result image. The default is 100.
+
+    Returns
+    -------
+    None.
+
+    """
     cfg = auxiliaryfunctions.read_config(config)
     if not iteration:
         it=cfg['iteration']
@@ -828,6 +847,23 @@ def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
     fig.savefig(os.path.join(evalPath, 'iteration-'+str(it),'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
         
 def sortFiles(directory, prefixes, extensions):
+    """
+    Sort result files into subdirectories.
+
+    Parameters
+    ----------
+    directory : string
+        Path to folder containing result files.
+    prefixes : list
+        File prefixes to sort by.
+    extensions : list
+        File types to sort (.csv, .h5, or both).
+
+    Returns
+    -------
+    None.
+
+    """
     files = os.listdir(directory)
     groupPaths = []
     for group in prefixes:
@@ -845,6 +881,21 @@ def sortFiles(directory, prefixes, extensions):
                 shutil.copy(os.path.join(directory, file), os.path.join(directory, group, e.strip('.')))
 
 def checkLabelSD(config, drop=None):
+    """Check standard deviations of labeled body parts. Helpful for identifying incorrectly labeled frames.
+    
+
+    Parameters
+    ----------
+    config : string
+        Path to config file.
+    drop : string, optional
+        Body parts to drop prior to stdev calculation, for example stationary objects that are not attached to the animal. The default is None.
+
+    Returns
+    -------
+    None.
+
+    """
     cfg = auxiliaryfunctions.read_config(config)
     projectPath = cfg['project_path']
     scorer = cfg['scorer']
@@ -870,6 +921,26 @@ def checkLabelSD(config, drop=None):
     cat.to_csv(os.path.join(projectPath, 'labeledData_StDevs_iter'+str(it)+'.csv'))
 
 def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
+    """Quantify number of frames that an object appears with likelihood over pcutoff.
+    
+
+    Parameters
+    ----------
+    config : string
+        Path to config file.
+    resultDirectory : string
+        Path to directory containing results.
+    obj : string
+        Labeled object to count.
+    pcutoff : float, optional
+        Pcutoff for detection. The default is None. If None reads from config file.
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     cfg = auxiliaryfunctions.read_config(config)
     if not pcutoff:
         pcutoff=cfg['pcutoff']
@@ -888,15 +959,35 @@ def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
     return sorted(info)
 
 def trimVideos(directory, start=0, length=20, fps=30):
+    """
+    Clip videos down to given length.
+    
+    Parameters
+    ----------
+    directory: string
+        Path to directory containing videos.
+    start : int
+        Start frame number.
+    length : int
+        Output video length in minutes.
+    fps : int
+        Frame rate of recorded video.
+
+    Returns
+    -------
+    None.
+    
+    """
     files = os.listdir(directory)
     endFrame=length*60*fps
     if not os.path.exists(os.path.join(directory, 'trimmed/')):
         os.mkdir(os.path.join(directory, 'trimmed/'))
     for f in files:
-        n, e = os.path.splitext(f)
-        if not os.path.exists(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)):
-            fullpath = os.path.join(directory, f)
-            vid = ffmpeg.input(fullpath)
-            vid.trim(start=0, stop=endFrame)
-            output = ffmpeg.output(vid, os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e))
-            output.run()
+        if f.endswith('.mp4'):
+            n, e = os.path.splitext(f)
+            if not os.path.exists(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)):
+                fullpath = os.path.join(directory, f)
+                vid = ffmpeg.input(fullpath)            
+                vid.trim(start_frame = start, end_frame = endFrame).setpts('PTS-STARTPTS').output(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)).run()
+
+

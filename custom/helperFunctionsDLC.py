@@ -30,13 +30,12 @@ def h5toCSV(directory):
     -------
     None.
     """
-    files = os.listdir(directory)
+    files = [x for x in os.listdir(directory) if x.endswith('.h5')]
     for f in files:
-        if f.endswith('.h5'):
-            n, e = os.path.splitext(f)
-            fullpath=os.path.join(directory, f)
-            df = pd.read_hdf(fullpath)
-            df.to_csv(os.path.join(directory, n + '.csv'))
+        n, e = os.path.splitext(f)
+        fullpath=os.path.join(directory, f)
+        df = pd.read_hdf(fullpath)
+        df.to_csv(os.path.join(directory, n + '.csv'))
 
 def interpolateValues(file, pcutoff):
     """Interpolate values with low prediction confidence (i.e. low likelihood).
@@ -85,18 +84,16 @@ def trimFrames(directory, startFrame=None, stopFrame=None):
     if not os.path.exist(saveDir):
         os.mkdir(saveDir)
     for f in files:
+        sampleName = f.split('DLC')[0]
+        fullpath = os.path.join(directory, f)
         if f.endswith('.csv'):
-            sampleName = f.split('DLC')[0]
-            fullpath = os.path.join(directory, f)
             df = pd.read_csv(fullpath, header = [0,1,2], index_col=0)
             df = df[startFrame:stopFrame]
             df.to_csv(os.path.join(saveDir, sampleName + '_trimmed.csv'))
         elif f.endswith('.h5'):
-            sampleName = f.split('DLC')[0]
-            fullpath = os.path.join(directory, f)
             df = pd.read_hdf(fullpath)
             df = df[startFrame:stopFrame]
-            df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.csv'), key='df_with_missing')
+            df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.h5'), key='df_with_missing')
 
 def extractPoses(parentDirectory, prefix=''):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
@@ -252,24 +249,23 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
 
     """
     
-    files = os.listdir(directory)
+    files = [x for x in os.listdir(directory) if x.endswith('.csv') or x.endswith('.h5')]
     if save:
         if not os.path.exists(os.path.join(directory, 'SplitZoneData/')):
             os.mkdir(os.path.join(directory, 'SplitZoneData/'))
     for f in files:
-        if f.endswith('.csv') or f.endswith('.h5'):
-            n, e = os.path.splitext(f)
-            fullpath = os.path.join(directory, f)
-            if f.endswith('.csv'):
-                df = pd.read_csv(fullpath, header=[0,1,2], index_col=0)
-            elif f.endswith('.h5'):
-                df = pd.read_hdf(fullpath)
-            leftTime, rightTme, leftIndex, rightIndex = calcZoneTimes(fullpath, modelPrefix, bodyPart, axis, flippedX=flipped, index=True)
-            leftData = df.loc[df.index.isin(leftIndex)]
-            rightData = df.loc[df.index.isin(rightIndex)]
-            if save:
-                leftData.to_csv(os.path.join(directory, 'SplitZoneData/' + n + '_LeftZone.csv'))
-                rightData.to_csv(os.path.join(directory, 'SplitZoneData/' + n + '_RightZone.csv'))
+        n, e = os.path.splitext(f)
+        fullpath = os.path.join(directory, f)
+        if f.endswith('.csv'):
+            df = pd.read_csv(fullpath, header=[0,1,2], index_col=0)
+        elif f.endswith('.h5'):
+            df = pd.read_hdf(fullpath)
+        leftTime, rightTme, leftIndex, rightIndex = calcZoneTimes(fullpath, modelPrefix, bodyPart, axis, flippedX=flipped, index=True)
+        leftData = df.loc[df.index.isin(leftIndex)]
+        rightData = df.loc[df.index.isin(rightIndex)]
+        if save:
+            leftData.to_csv(os.path.join(directory, 'SplitZoneData/' + n + '_LeftZone.csv'))
+            rightData.to_csv(os.path.join(directory, 'SplitZoneData/' + n + '_RightZone.csv'))
     return leftData, rightData
 
 
@@ -345,19 +341,18 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
         os.mkdir(rightDir)
 
     left, right, leftIndex, rightIndex = calcZoneTimes(csvPath, modelPrefix, bodyPart, axis, flippedX=flippedX, index=True)
-    paths = os.listdir(frameDir)
+    paths = [x for x in os.listdir(frameDir) if x.endswith('.jpg')]
     for path in paths:
-        if path.endswith('.jpg'):
-            fullpath = os.path.join(frameDir, path)
-            frame = int(path.strip('.jpg'))
-            if frame in leftIndex:
-                if not os.path.exists(os.path.join(leftDir, path)):
-                    shutil.move(fullpath, leftDir)
-            elif frame in rightIndex:
-                if not os.path.exists(os.path.join(rightDir, path)):
-                    shutil.move(fullpath, rightDir)
-            else:
-                pass
+        fullpath = os.path.join(frameDir, path)
+        frame = int(path.strip('.jpg'))
+        if frame in leftIndex:
+            if not os.path.exists(os.path.join(leftDir, path)):
+                shutil.move(fullpath, leftDir)
+        elif frame in rightIndex:
+            if not os.path.exists(os.path.join(rightDir, path)):
+                shutil.move(fullpath, rightDir)
+        else:
+            pass
 
     left_img_array = []
     right_img_array = []
@@ -479,22 +474,21 @@ def compareAndPlotInteractions(directory, group1, group2):
 
     """
     
-    files = os.listdir(directory)
+    files = [x for x in os.listdir(directory) if x.endswith('_Interactions.csv')]
     samplesG1 = []
     countsG1 = []
     samplesG2 = []
     countsG2 = []
     for f in files:
-        if f.endswith('_Interactions.csv'):
-            sampleName = f.split('/')[0].split('_Dist')[0]
-            df = pd.read_csv(os.path.join(directory, f), index_col=0)
-            count = df.shape[0]
-            if sampleName in group1:
-                samplesG1.append(sampleName)
-                countsG1.append(count)
-            elif sampleName in group2:
-                samplesG2.append(sampleName)
-                countsG2.append(count)
+        sampleName = f.split('/')[0].split('_Dist')[0]
+        df = pd.read_csv(os.path.join(directory, f), index_col=0)
+        count = df.shape[0]
+        if sampleName in group1:
+            samplesG1.append(sampleName)
+            countsG1.append(count)
+        elif sampleName in group2:
+            samplesG2.append(sampleName)
+            countsG2.append(count)
                 
     g1_arr = np.array(countsG1)
     g2_arr = np.array(countsG2)
@@ -958,7 +952,7 @@ def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
         info.append((fileName, startFrame, objFrames.shape[0]))
     return sorted(info)
 
-def trimVideos(directory, start=0, length=20, fps=30):
+def trimVideos(directory, start=0, length=20, fps=30, videoType='.mp4'):
     """
     Clip videos down to given length.
     
@@ -978,16 +972,15 @@ def trimVideos(directory, start=0, length=20, fps=30):
     None.
     
     """
-    files = os.listdir(directory)
+    files = [x for x in os.listdir(directory) if x.endswith(videoType)]
     endFrame=length*60*fps
     if not os.path.exists(os.path.join(directory, 'trimmed/')):
         os.mkdir(os.path.join(directory, 'trimmed/'))
     for f in files:
-        if f.endswith('.mp4'):
-            n, e = os.path.splitext(f)
-            if not os.path.exists(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)):
-                fullpath = os.path.join(directory, f)
-                vid = ffmpeg.input(fullpath)            
-                vid.trim(start_frame = start, end_frame = endFrame).setpts('PTS-STARTPTS').output(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)).run()
+        n, e = os.path.splitext(f)
+        if not os.path.exists(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)):
+            fullpath = os.path.join(directory, f)
+            vid = ffmpeg.input(fullpath)            
+            vid.trim(start_frame = start, end_frame = endFrame).setpts('PTS-STARTPTS').output(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)).run()
 
 

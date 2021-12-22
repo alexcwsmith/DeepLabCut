@@ -801,6 +801,47 @@ def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=Non
     elif not distThreshold:
         return(distDf)
 
+def plotTrainingLoss(config, iteration=None, shuffle=1, imagetype='.png', resolution=100):
+    """Plot training loss.
+    
+
+    Parameters
+    ----------
+    config : string
+        Path to config file.
+    iteration : int, optional
+        Iteration number to plot. Default None reads from config file.
+    imagetype : string, optional
+        Image format to save. The default is '.png'.
+    resolution : int, optional
+        dpi to save result image. The default is 100.
+
+    Returns
+    -------
+    None.
+
+    """
+    cfg = auxiliaryfunctions.read_config(config)
+    task = cfg['Task']
+    scorer = cfg['scorer']
+    date = cfg['date']
+    trainFraction = int(cfg['TrainingFraction'][0]*100)
+    if not iteration:
+        it=cfg['iteration']
+    elif iteration:
+        it = iteration
+    projectPath = cfg['project_path']
+    lossPath = os.path.join(projectPath, 'dlc-models', 'iteration-'+str(it), task+date+'-trainset'+str(trainFraction)+'shuffle'+str(shuffle), 'train')
+    df = pd.read_csv(os.path.join(lossPath, 'learning_stats.csv'), index_col=0, header=None)
+    df.columns=['loss', 'learning_rate']
+    ticks = df.index.tolist()
+    fig, ax = plt.subplots()
+    df.plot(kind='line', y='loss', color='blue', legend=True, ax=ax)
+    plt.xticks(ticks=ticks, rotation=45)
+    ax.set_ylabel('Loss', fontsize=18)
+    ax.set_xlabel('Iteration', fontsize=18)
+    fig.savefig(os.path.join(lossPath, 'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
+    
 def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
     """Plot training loss.
     
@@ -931,8 +972,8 @@ def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
 
     Returns
     -------
-    TYPE
-        DESCRIPTION.
+    list
+        List of files, start frames, and lengths.
 
     """
     cfg = auxiliaryfunctions.read_config(config)

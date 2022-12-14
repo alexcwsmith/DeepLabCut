@@ -56,11 +56,12 @@ iteration pose_cfg.yaml file in the poseCfgTemplate variable below. If you want 
 just set posecfg_template=None (or False) in the create_training_dataset function, or just remove pose_cfg_template=
 entirely and it will use the default.
 """
-poseCfgTemplate='/d1/studies/DLC_data/OperantIVSAmodel/MouseIVSA-smith-2021-06-11/dlc-models/iteration-11/MouseIVSAJun11-trainset95shuffle1/train/pose_cfg.yaml'
+poseCfgTemplate='/d1/software/DeepLabCut/deeplabcut/pose_cfg_ACWS_14DEC2022.yaml'
 dlc.create_training_dataset(path_config_file, num_shuffles=2, net_type='resnet_50', augmenter_type='imgaug', posecfg_template=None)
 
-#%%TRAIN & EVALUATE NETWORK:
+#%%TRAIN NETWORK
 dlc.train_network(path_config_file, shuffle=1, max_snapshots_to_keep=None, allow_growth=True, keepdeconvweights=True)
+#%% EVALUATE & PLOT LOSS:
 dlc.evaluate_network(path_config_file, plotting=False)
 hf.plotLoss(path_config_file)
 

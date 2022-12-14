@@ -286,7 +286,7 @@ def train(
                     it, "{0:.4f}".format(average_loss), current_lr
                 )
             )
-            lrf.write("{}, {:.5f}, {}\n".format(it, average_loss, current_lr))
+            lrf.write("{}, {:.5f}, {}, {}\n".format(it, average_loss, current_lr, dt.now().strftime('%H:%M:%S')))
             lrf.flush()
 
         # Save snapshot

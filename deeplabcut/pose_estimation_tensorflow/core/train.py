@@ -16,6 +16,7 @@ import logging
 import os
 import threading
 from pathlib import Path
+from datetime import datetime as dt
 
 import tensorflow as tf
 tf.compat.v1.disable_eager_execution()
@@ -281,7 +282,7 @@ def train(
             average_loss = cum_loss / display_iters
             cum_loss = 0.0
             logging.info(
-                "iteration: {} loss: {} lr: {}".format(
+                "{} iteration: {} loss: {} lr: {}".format(dt.now().strftime('%H:%M:%S'),
                     it, "{0:.4f}".format(average_loss), current_lr
                 )
             )

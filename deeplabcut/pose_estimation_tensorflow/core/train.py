@@ -260,7 +260,7 @@ def train(
 
     stats_path = Path(config_yaml).with_name("learning_stats.csv")
     lrf = open(str(stats_path), "w")
-    lrf.write("iteration, loss, learning_rate, time to complete\n"
+    lrf.write("iteration, loss, learning_rate, time to complete\n")
     lrf.flush()
 
     print("Training parameter:")
@@ -289,7 +289,7 @@ def train(
             average_loss = cum_loss / display_iters
             cum_loss = 0.0
             logging.info(
-                "iteration: {} loss: {} lr: {} minutes: ()".format(
+                "iteration: {} loss: {} lr: {} minutes: {}".format(
                     it, "{0:.4f}".format(average_loss), current_lr, round(minutes,2)
                 )
             )

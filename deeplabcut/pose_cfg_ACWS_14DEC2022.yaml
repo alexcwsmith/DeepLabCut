@@ -1,0 +1,91 @@
+all_joints:
+- - 0
+- - 1
+- - 2
+- - 3
+- - 4
+- - 5
+- - 6
+- - 7
+- - 8
+all_joints_names:
+- nose
+- spine1
+- spine2
+- spine3
+- forepaw_r
+- hindpaw_r
+- forepaw_l
+- hindpaw_l
+- tail_base
+#NN Structure:
+batch_size: 8
+net_type: resnet_50
+optimizer: adam
+display_iters: 250
+save_iters: 4000
+dataset: training-datasets/iteration-0/UnaugmentedDataSet_MeganRotationDec13/MeganRotation_smith95shuffle1.mat
+init_weights: /d1/software/DeepLabCut/deeplabcut/pose_estimation_tensorflow/models/pretrained/resnet_v1_50.ckpt
+metadataset: training-datasets/iteration-0/UnaugmentedDataSet_MeganRotationDec13/Documentation_data-MeganRotation_95shuffle1.pickle
+project_path: /d1/studies/DLC_Data/MeganRotation-smith-2022-12-13
+
+#For learning rate scheduler:
+multi_stage: false
+multi_step:
+- - 1e-04
+  - 5000
+- - 3e-05
+  - 15000
+- - 1e-05
+  - 40000
+#For cosine decay:
+lr_init: 0.0005 #initial learning rate
+alpha_r: 0.02 #minimum learning rate (as fraction of lr_init)
+decay_steps: 30000 #over how many steps to move from init to alpha
+#Image augmentation
+pre_resize: []
+global_scale: 0.8
+dataset_type: imgaug
+apply_prob: 0.5
+mirror: false
+rotation: 45
+rotratio: 0.4
+scale_jitter_lo: 0.5
+scale_jitter_up: 1.25
+# dictionary with contrast parameters
+contrast:
+   clahe: True
+   claheratio: 0.1
+   histeq: True
+   histeqratio: 0.1
+# dictionary with convolution parameters
+convolution:
+   sharpen: True
+   sharpenratio: 0.1
+   edge: False
+   emboss:
+      alpha: [0.0, 1.0]
+      strength: [0.5, 1.5]
+   embossratio: 0.1
+#for cropped training
+crop_sampling: hybrid
+crop_size: [300, 300]
+cropratio: 0.4
+max_shift: 0.4
+
+#probably don't need to touch these:
+intermediate_supervision: false
+intermediate_supervision_layer: 12
+location_refinement: true
+locref_huber_loss: true
+locref_loss_weight: 0.05
+locref_stdev: 7.2801
+max_input_size: 1500
+min_input_size: 64
+num_joints: 9
+pairwise_huber_loss: false
+pairwise_predict: false
+partaffinityfield_predict: false
+pos_dist_thresh: 17
+
+

@@ -17,7 +17,19 @@ import matplotlib.pyplot as plt
 import glob
 from deeplabcut.utils import auxiliaryfunctions
 import ffmpeg
+import random
 
+
+#%%
+def loadDir(path, ext='.tif', shuffle=False):
+    if not shuffle:
+        return sorted(os.path.join(path, x) for x in os.listdir(path) if x.endswith(ext))
+    elif shuffle:
+        vids = [os.path.join(path, x) for x in os.listdir(path) if x.endswith(ext)]
+        random.shuffle(vids)
+        return vids
+
+#%%
 def h5toCSV(directory):
     """Convert all .h5 files in directory to .csvs.
     
@@ -37,6 +49,7 @@ def h5toCSV(directory):
         df = pd.read_hdf(fullpath)
         df.to_csv(os.path.join(directory, n + '.csv'))
 
+#%%
 def interpolateValues(file, pcutoff):
     """Interpolate values with low prediction confidence (i.e. low likelihood).
     
@@ -67,6 +80,7 @@ def interpolateValues(file, pcutoff):
     df.to_hdf(filename + '_interpolated.h5', key='df_with_missing')
     return(df)
 
+#%%
 def trimFrames(directory, startFrame=None, stopFrame=None):
     """Crop csv or data files within specific frames. Good for removing unuseful frames from beginning, end, or both.
     
@@ -95,6 +109,7 @@ def trimFrames(directory, startFrame=None, stopFrame=None):
             df = df[startFrame:stopFrame]
             df.to_hdf(os.path.join(saveDir, sampleName + '_trimmed.h5'), key='df_with_missing')
 
+#%%
 def extractPoses(parentDirectory, prefix=''):
     """Extract and re-organizes files from plot_poses (result of dlc.plot_trajectories) into folders for each plot type.
     
@@ -134,7 +149,7 @@ def extractPoses(parentDirectory, prefix=''):
                 targpath = os.path.join(basepath, f + '/' + sample + '_' + f + e)
                 shutil.copyfile(fullpath, targpath)
 
-
+#%%
 def calcZoneTimes(csvPath, modelPrefix, bodyPart, midline='all', axis='x', pcutoff=0.1, fps=30, flippedX=False, index=False, objects=None):
     """Calculate time spent in each half of arena, split along a given axis.
     
@@ -217,6 +232,7 @@ def calcZoneTimes(csvPath, modelPrefix, bodyPart, midline='all', axis='x', pcuto
     elif not index:
         return leftTime, rightTime
 
+#%%
 def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save=True):
     """Create new data files for each zone created in calcZoneTimes.
     
@@ -268,7 +284,7 @@ def extractZones(directory, modelPrefix, bodyPart, axis='x', flipped=False, save
             rightData.to_csv(os.path.join(directory, 'SplitZoneData/' + n + '_RightZone.csv'))
     return leftData, rightData
 
-
+#%%
 def extractFrames(vidPath, saveDir):
     """Extract all frames from video as .jpg files.
 
@@ -302,7 +318,7 @@ def extractFrames(vidPath, saveDir):
             break
     vc.release()
 
-
+#%%
 def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, flippedX=False):
     """Create new videos containing only frames in each zone.
     
@@ -389,6 +405,7 @@ def makeZoneVideo(csvPath, modelPrefix, bodyPart, axis, frameDir, fps, size, fli
             out.write(right_img_array[i])
         out.release()
 
+#%%
 def consecutive(data, stepsize=1):
     data = data[:]
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
@@ -456,6 +473,7 @@ def countBouts(csvPath, modelPrefix, bodyPart, midline='all', axis='x', fps=30, 
         df.to_csv(os.path.join(saveDir, sampleName + '_'+bodyPart+'_ZoneBouts.csv'))
     return df    
 
+#%%
 def compareAndPlotInteractions(directory, group1, group2):
     """Compare results from calcMAinteractions with a t-test, and create bar graph of two groups.
 
@@ -514,6 +532,7 @@ def compareAndPlotInteractions(directory, group1, group2):
     plt.show()
     return(result)
 
+#%%
 def calcVelocity(file, bodyParts, directory, window=5, returnDistance=False):
     """Calculate velocity of bodyParts between given number of frames (window).
     
@@ -567,6 +586,7 @@ def calcVelocity(file, bodyParts, directory, window=5, returnDistance=False):
         distDf.to_csv(os.path.join(directory, sampleName + '_DistanceTraveled_Window' + str(window) + '.csv'))
         return cat, distDf
 
+#%%
 def plotVelocities(group1, group2, directory, window, numFiles=2, group1name=None, group2name=None):
     g1cat = pd.DataFrame()
     for mouse in group1:
@@ -606,6 +626,7 @@ def plotVelocities(group1, group2, directory, window, numFiles=2, group1name=Non
     plt.xticks(fontsize=16)
     plt.savefig(os.path.join(directory, 'VelocityPlot.png'))
 
+#%%
 def averageArrays(arrays, axis=0, return_sem=True):
     results = []
     for i in range(len(arrays)):
@@ -616,8 +637,7 @@ def averageArrays(arrays, axis=0, return_sem=True):
             results.append(sem)
     return results
         
-   
-
+#%%
 def makeObjectStationary(directory, objectName, dtype='.h5', pcutoff=0.5, file=None, returnCoords=False):
     """If a stationary object is in the video, alter result data files to reflect it's mean position.
     
@@ -675,6 +695,7 @@ def makeObjectStationary(directory, objectName, dtype='.h5', pcutoff=0.5, file=N
     if returnCoords:
         return result
 
+#%%
 def alignToObject(h5Path, obj, coords=None):
     """Set object position to 0,0 for all frames, and create data file with all other bodyparts coordinate distance from object.
     
@@ -715,6 +736,7 @@ def alignToObject(h5Path, obj, coords=None):
         os.mkdir(os.path.join(directory, 'alignedTo'+obj+'/'))
     df_ego.to_hdf(os.path.join(directory, 'alignedTo'+obj+'/' + f + '_alignedTo'+obj+'.h5'), key='df_with_missing')
 
+#%%
 def combineDistancesPerGroup(dataFiles, bodyPart, obj):
     f0 = pd.read_hdf(dataFiles[0])
     cols = f0.columns
@@ -733,7 +755,7 @@ def combineDistancesPerGroup(dataFiles, bodyPart, obj):
         cat = pd.concat([cat, df],axis=0,ignore_index=True)
     return(cat)
 
-
+#%%
 def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=None, distThreshold=None, stationary=False):
     """Calculate the distance between a labaled bodyPart and an object in single-animal DLC,
     and optionally calculate # of frames bodyPart is interacting with object.
@@ -801,6 +823,7 @@ def calcDistanceToObject(file, bodyPart, obj, directory=os.getcwd(), pcutoff=Non
     elif not distThreshold:
         return(distDf)
 
+#%%
 def plotTrainingLoss(config, iteration=None, shuffle=1, imagetype='.png', resolution=100):
     """Plot training loss.
     
@@ -841,7 +864,8 @@ def plotTrainingLoss(config, iteration=None, shuffle=1, imagetype='.png', resolu
     ax.set_ylabel('Loss', fontsize=18)
     ax.set_xlabel('Iteration', fontsize=18)
     fig.savefig(os.path.join(lossPath, 'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
-    
+
+#%%    
 def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
     """Plot training loss.
     
@@ -880,7 +904,8 @@ def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
     ax.set_ylabel('Error (px)', fontsize=18)
     ax.set_xlabel('Iteration', fontsize=18)
     fig.savefig(os.path.join(evalPath, 'iteration-'+str(it),'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
-        
+
+#%%       
 def sortFiles(directory, prefixes, extensions):
     """
     Sort result files into subdirectories.
@@ -915,6 +940,7 @@ def sortFiles(directory, prefixes, extensions):
                 f, e = os.path.splitext(file)
                 shutil.copy(os.path.join(directory, file), os.path.join(directory, group, e.strip('.')))
 
+#%%
 def checkLabelSD(config, drop=None):
     """Check standard deviations of labeled body parts. Helpful for identifying incorrectly labeled frames.
     
@@ -955,6 +981,7 @@ def checkLabelSD(config, drop=None):
             cat = pd.concat([cat, stdDf], axis=0)
     cat.to_csv(os.path.join(projectPath, 'labeledData_StDevs_iter'+str(it)+'.csv'))
 
+#%%
 def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
     """Quantify number of frames that an object appears with likelihood over pcutoff.
     
@@ -993,6 +1020,7 @@ def countFramesWithObject(config, resultDirectory, obj, pcutoff=None):
         info.append((fileName, startFrame, objFrames.shape[0]))
     return sorted(info)
 
+#%%
 def trimVideos(directory, start=0, length=20, fps=30, videoType='.mp4'):
     """
     Clip videos down to given length.
@@ -1023,5 +1051,4 @@ def trimVideos(directory, start=0, length=20, fps=30, videoType='.mp4'):
             fullpath = os.path.join(directory, f)
             vid = ffmpeg.input(fullpath)            
             vid.trim(start_frame = start, end_frame = endFrame).setpts('PTS-STARTPTS').output(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)).run()
-
-
+    

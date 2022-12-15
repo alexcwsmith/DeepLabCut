@@ -19,6 +19,11 @@ import glob
 %matplotlib inline
 os.chdir('/d1/studies/DLC_Data/')
 
+#%%Make list of videos for training or analysis
+videoDirectory = '/d1/studies/DLC_Data/MeganRotation-smith-2022-12-13/videos' #to the path where your videos are saved
+videoFormat = '.mp4' #the format of the videos in videoDirectory
+vids = hf.loadDir(videoDirectory, videoFormat, shuffle=True)
+
 #%%Set up experiment:
 new = False #set to True if you are creating a new project, or 'vids' to just add new videos to current project.
 if not new:
@@ -27,25 +32,17 @@ if not new:
     cfg=auxiliaryfunctions.read_config(path_config_file) #this just makes it easy to check any parameters in config. e.g. inputting cfg['pcutoff'] will return the current pcutoff
     projectPath = cfg['project_path']
 
-videoDirectory = '/d1/studies/DLC_Data/MeganRotation-smith-2022-12-13/videos' #change to the path where your videos are saved
-videoFormat = '.mp4'
-vids = glob.glob(os.path.join(videoDirectory, '*'+videoFormat))
-#vids2 = glob.glob(os.path.join(videoDirectory, '*s'+videoFormat))
-#vids.extend(vids2)
-print(str(len(vids)) + " videos added to list")
-
-if new: #change task and experimenter below if new=True, or use new='vids' to only add new videos but not create a new project.
+if new:
     task = 'MeganRotation'
     experimenter='smith'
     if new !='vids':
         dlc.create_new_project(task, experimenter, vids, videotype=videoFormat, copy_videos=True)
     elif new =='vids':
         dlc.add_new_videos(path_config_file, vids, copy_videos=True)
-#%%EXTRACT FRAMES & LABEL THEM:
-dlc.extract_frames(path_config_file, mode='automatic') #Add argument mode='manual' to manually select frames, make sure to grab diverse frames to capture broad range of behaviors, also consider if there are lighting differences within the frame
+#%%EXTRACT & LABEL FRAMES:
+dlc.extract_frames(path_config_file, mode='manual') #mode can be 'automatic' or 'manual'
 dlc.label_frames(path_config_file)
 dlc.check_labels(path_config_file, draw_skeleton=True)
-#dlc.cropimagesandlabels(path_config_file, numcrops=6, size=(750, 375), userfeedback=False) DEPRECATED
 dlc.dropimagesduetolackofannotation(path_config_file)
 
 #%%CREATE TRAINING DATASET:
@@ -56,13 +53,13 @@ iteration pose_cfg.yaml file in the poseCfgTemplate variable below. If you want 
 just set posecfg_template=None (or False) in the create_training_dataset function, or just remove pose_cfg_template=
 entirely and it will use the default.
 """
-poseCfgTemplate='/d1/software/DeepLabCut/deeplabcut/pose_cfg_ACWS_14DEC2022.yaml'
+poseCfgTemplate='/d1/studies/DLC_Data/MeganRotation-smith-2022-12-13/dlc-models/iteration-1/MeganRotationDec13-trainset95shuffle1/train/pose_cfg.yaml'
 dlc.create_training_dataset(path_config_file, num_shuffles=2, net_type='resnet_50', augmenter_type='imgaug', posecfg_template=None)
 
 #%%TRAIN NETWORK
 dlc.train_network(path_config_file, shuffle=1, max_snapshots_to_keep=None, allow_growth=True, keepdeconvweights=True)
 #%% EVALUATE & PLOT LOSS:
-dlc.evaluate_network(path_config_file, plotting=False)
+dlc.evaluate_network(path_config_file, plotting=False, term_gpu=False)
 hf.plotLoss(path_config_file)
 
 #%%ANALYZE VIDEOS:
@@ -74,19 +71,31 @@ print(time.ctime())
 dlc.analyze_videos(path_config_file, vids, videotype=videoFormat, term_gpu=True, save_as_csv=True, batchsize=64) #dynamic=(True, 0.3, 10),
 print(time.ctime())
 
-#%%ANALYZE A SINGLE VIDEO:
+#%%ANALYZE A SINGLE VIDEOS:
 dlc.analyze_videos(path_config_file, ['/d1/studies/DLC_data/Soham/NPW-Soham-2020-08-17_singleanimal-Soham-2020-09-01/videos/C3-LT_Phase3.mp4'], batchsize=64, save_as_csv=True, videotype=videoFormat)
+
+#%%CREATE LABELED VIDEOS
+dlc.create_labeled_video(path_config_file, vids,  videotype=videoFormat, displayedbodyparts='all', outputframerate=30)
+
+#%% Do you want to refine labels from the just-analized videos? If so, set refine to True.
+refine=False
 
 #%%OPTIONAL, REFINE NETWORK:
 bodyParts=cfg['bodyparts']
-bodyParts.remove('cueLight') #If you are tracking stationary objects that are not always present, you may want to exclude them from outlier frame deection
-dlc.extract_outlier_frames(path_config_file, vids, comparisonbodyparts=bodyParts, videotype=videoFormat, outlieralgorithm='jump', epsilon=600)
+# if you have any bodyParts that you do not want to refine the labels of, include them in this list:
+bodyPartToExclude='cueLight' # if you want to exclude any key points from refinement
+bodyParts.remove(bodyPartsToExclude) #If you are tracking stationary objects that are not always present, you may want to exclude them from outlier frame deection
+dlc.extract_outlier_frames(path_config_file, vids, comparisonbodyparts=bodyParts, videotype=videoFormat, outlieralgorithm='jump', epsilon=175)
 
 #%%OPTIONALLY REFINE LABELS AND CREATE NEW TRAINING DATASET. ADDS +1 to ITERATON IN CONFIG.YAML
 dlc.refine_labels(path_config_file)
 dlc.merge_datasets(path_config_file)
+
+#see note above about poseCfg_template
+poseCfgTemplate='/d1/studies/DLC_Data/MeganRotation-smith-2022-12-13/dlc-models/iteration-1/MeganRotationDec13-trainset95shuffle1/train/pose_cfg.yaml'
 dlc.create_training_dataset(path_config_file, augmenter_type='imgaug')
-dlc.train_network(path_config_file, max_snapshots_to_keep=15, allow_growth=True, keepdeconvweights=True)
+#%% Retrain the network. You can go back to line 65 and restart the training and refinement process.
+dlc.train_network(path_config_file, max_snapshots_to_keep=None, allow_growth=True, keepdeconvweights=True)
 #AFTER RE-TRAINING NETWORK, GO BACK TO LINE 51 (EVALUATE NETWORK) AND CONTINUE TO REFINE IF NECESSARY
 
 #%%CREATE LABELED VIDEOS:
@@ -105,7 +114,7 @@ bodyParts=cfg['bodyparts']
 destfolder=videoDirectory
 dlc.plot_trajectories(path_config_file, vids, videotype=videoFormat, displayedbodyparts=bodyParts, filtered=False, destfolder=destfolder, track_method='', imagetype='.png', linewidth=0.5, resolution=300)
 #Reorganize plots into folders with each plot type:
-parentDirectory = '/d1/studies/DLC_Data/MouseIVSA-smith-2021-06-11/vidsToAnalyze/plot-poses'
+parentDirectory = '/d1/studies/DLC_Data/MeganRotation-smith-2022-12-13/videos/plot-poses'
 hf.extractPoses(parentDirectory)
 
 
@@ -165,6 +174,8 @@ df = pd.DataFrame([mice, leftTimes, rightTimes]).T
 df.columns=['Mouse', 'Left Time', 'Right Time']
 df.to_csv(os.path.join(directory, 'Combined_Zone_Data.csv'))
 
-
+#%% QUALITY CONTROL:
+    
+hf.checkLabelSD(path_config_file, drop=None)
 
 

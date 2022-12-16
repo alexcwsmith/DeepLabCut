@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Loader structure adapted from DeeperCut by Eldar Insafutdinov
@@ -22,8 +22,9 @@ import pickle
 import imgaug.augmenters as iaa
 import numpy as np
 import scipy.io as sio
-
+from deeplabcut.pose_estimation_tensorflow.datasets import augmentation
 from deeplabcut.utils.auxfun_videos import imread
+from deeplabcut.utils.conversioncode import robust_split_path
 from .factory import PoseDatasetFactory
 from .pose_base import BasePoseDataset
 from .utils import DataItem, Batch
@@ -34,6 +35,7 @@ from .utils import DataItem, Batch
 class ImgaugPoseDataset(BasePoseDataset):
     def __init__(self, cfg):
         super(ImgaugPoseDataset, self).__init__(cfg)
+        self._n_kpts = len(cfg["all_joints_names"])
         self.data = self.load_dataset()
         self.batch_size = cfg.get("batch_size", 1)
         self.num_images = len(self.data)
@@ -92,7 +94,12 @@ class ImgaugPoseDataset(BasePoseDataset):
 
                 item = DataItem()
                 item.image_id = i
-                item.im_path = sample[0][0]
+                im_path = sample[0][0]
+                if isinstance(im_path, str):
+                    im_path = robust_split_path(im_path)
+                else:
+                    im_path = [s.strip() for s in im_path]
+                item.im_path = os.path.join(*im_path)
                 item.im_size = sample[1][0]
                 if len(sample) >= 3:
                     joints = sample[2][0][0]
@@ -122,7 +129,7 @@ class ImgaugPoseDataset(BasePoseDataset):
                 sample = pickledata[i]  # mlab[0, i]
                 item = DataItem()
                 item.image_id = i
-                item.im_path = sample["image"]  # [0][0]
+                item.im_path = os.path.join(*sample["image"])  # [0][0]
                 item.im_size = sample["size"]  # sample[1][0]
                 if len(sample) >= 3:
                     item.num_animals = len(sample["joints"])
@@ -145,6 +152,20 @@ class ImgaugPoseDataset(BasePoseDataset):
                 pipeline.add(sometimes(iaa.Fliplr(opt)))
             else:
                 pipeline.add(sometimes(iaa.Fliplr(0.5)))
+
+        if cfg.get("fliplr", False) and cfg.get("symmetric_pairs"):
+            opt = cfg.get("fliplr", False)
+            if type(opt) == int:
+                p = opt
+            else:
+                p = 0.5
+            pipeline.add(sometimes(
+                augmentation.KeypointFliplr(
+                    cfg["all_joints_names"],
+                    symmetric_pairs=cfg["symmetric_pairs"],
+                    p=p,
+                )
+            ))
 
         if cfg["rotation"] > 0:
             pipeline.add(
@@ -277,14 +298,30 @@ class ImgaugPoseDataset(BasePoseDataset):
         batch_joints = []
         joint_ids = []
         data_items = []
+
         # Scale is sampled only once to transform all of the images of a batch into same size.
         scale = self.sample_scale()
-        while True:
+
+        found_valid = False
+        n_tries = 10
+        while n_tries > 1:
             idx = np.random.choice(self.num_images)
             size = self.data[idx].im_size
             target_size = np.ceil(size[1:3] * scale).astype(int)
             if self.is_valid_size(target_size[1] * target_size[0]):
+                found_valid = True
                 break
+            n_tries -= 1
+        if not found_valid:
+            if size[1] * size[2] > self.max_input_sizesquare:
+                s = "large", "increasing `max_input_size`", "decreasing"
+            else:
+                s = "small", "decreasing `min_input_size`", "increasing"
+            raise ValueError(
+                f"Image size {size[1:3]} may be too {s[0]}. "
+                f"Consider {s[1]} and/or {s[2]} `global_scale` "
+                "in the train/pose_cfg.yaml."
+            )
 
         stride = self.cfg["stride"]
         for i in range(self.batch_size):
@@ -294,14 +331,20 @@ class ImgaugPoseDataset(BasePoseDataset):
             im_file = data_item.im_path
 
             logging.debug("image %s", im_file)
-            image = imread(os.path.join(self.cfg["project_path"], im_file), mode="RGB")
+            image = imread(
+                os.path.join(self.cfg["project_path"], im_file), mode="skimage"
+            )
 
             if self.has_gt:
-                joints = np.copy(data_item.joints)
-                joint_id = [person_joints[:, 0].astype(int) for person_joints in joints]
-                joint_points = [person_joints[:, 1:3] for person_joints in joints]
-                joint_ids.append(joint_id)
-                batch_joints.append(np.array(joint_points)[0])
+                joints = data_item.joints
+                kpts = np.full((self._n_kpts, 2), np.nan)
+
+                for n, x, y in joints[0]:
+                    kpts[int(n)] = x, y
+
+                joint_ids.append([np.arange(self._n_kpts)])
+                batch_joints.append(kpts)
+
             batch_images.append(image)
         sm_size = np.ceil(target_size / (stride * 2)).astype(int) * 2
         assert len(batch_images) == self.batch_size
@@ -360,12 +403,37 @@ class ImgaugPoseDataset(BasePoseDataset):
                 sm_size,
                 target_size,
             ) = self.get_batch()
+
             pipeline = self.build_augmentation_pipeline(
                 height=target_size[0], width=target_size[1], apply_prob=0.5
             )
+
             batch_images, batch_joints = pipeline(
                 images=batch_images, keypoints=batch_joints
             )
+
+            image_shape = np.array(batch_images).shape[1:3]
+
+            batch_joints_valid = []
+            joint_ids_valid = []
+            for joints, ids in zip(batch_joints, joint_ids):
+                #invisible joints are represented by nans
+                mask = ~np.isnan(joints[:,0])
+                joints = joints[mask,:]
+                ids = ids[0][mask]
+                inside = np.logical_and.reduce(
+                    (
+                        joints[:, 0] < image_shape[1],
+                        joints[:, 0] > 0,
+                        joints[:, 1] < image_shape[0],
+                        joints[:, 1] > 0,
+                    )
+                )
+
+                batch_joints_valid.append(joints[inside])
+                joint_ids_valid.append([ids[inside]])
+
+
             # If you would like to check the augmented images, script for saving
             # the images with joints on:
             # import imageio
@@ -375,11 +443,10 @@ class ImgaugPoseDataset(BasePoseDataset):
             #    im = kps.draw_on_image(batch_images[i])
             #    imageio.imwrite('some_location/augmented/'+str(i)+'.png', im)
 
-            image_shape = np.array(batch_images).shape[1:3]
             batch = {Batch.inputs: np.array(batch_images).astype(np.float64)}
             if self.has_gt:
                 scmap_update = self.get_scmap_update(
-                    joint_ids, batch_joints, data_items, sm_size, image_shape
+                    joint_ids_valid, batch_joints_valid, data_items, sm_size, image_shape
                 )
                 batch.update(scmap_update)
 
@@ -425,9 +492,9 @@ class ImgaugPoseDataset(BasePoseDataset):
         for person_id in range(len(coords)):
             for k, j_id in enumerate(joint_id[person_id]):
                 joint_pt = coords[person_id][k, :]
-                j_x = np.asscalar(joint_pt[0])
+                j_x = np.asarray(joint_pt[0]).item()
                 j_x_sm = round((j_x - self.half_stride) / self.stride)
-                j_y = np.asscalar(joint_pt[1])
+                j_y = np.asarray(joint_pt[1]).item()
                 j_y_sm = round((j_y - self.half_stride) / self.stride)
                 map_j = grid.copy()
                 # Distance between the joint point and each coordinate
@@ -472,9 +539,9 @@ class ImgaugPoseDataset(BasePoseDataset):
         for person_id in range(len(coords)):
             for k, j_id in enumerate(joint_id[person_id]):
                 joint_pt = coords[person_id][k, :]
-                j_x = np.asscalar(joint_pt[0])
+                j_x = np.asarray(joint_pt[0]).item()
                 j_x_sm = round((j_x - self.half_stride) / self.stride)
-                j_y = np.asscalar(joint_pt[1])
+                j_y = np.asarray(joint_pt[1]).item()
                 j_y_sm = round((j_y - self.half_stride) / self.stride)
                 min_x = round(max(j_x_sm - dist_thresh - 1, 0))
                 max_x = round(min(j_x_sm + dist_thresh + 1, width - 1))

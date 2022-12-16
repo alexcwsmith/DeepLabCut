@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
 
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 import argparse
@@ -16,7 +16,7 @@ from scipy import signal
 from scipy.interpolate import CubicSpline
 
 from deeplabcut.refine_training_dataset.outlier_frames import FitSARIMAXModel
-from deeplabcut.utils import auxiliaryfunctions
+from deeplabcut.utils import auxiliaryfunctions, auxfun_multianimal
 
 
 def columnwise_spline_interp(data, max_gap=0):
@@ -67,7 +67,7 @@ def columnwise_spline_interp(data, max_gap=0):
 def filterpredictions(
     config,
     video,
-    videotype="avi",
+    videotype="",
     shuffle=1,
     trainingsetindex=0,
     filtertype="median",
@@ -81,83 +81,127 @@ def filterpredictions(
     modelprefix="",
     track_method="",
 ):
-    """
+    """Fits frame-by-frame pose predictions.
 
-    Fits frame-by-frame pose predictions with ARIMA model (filtertype='arima') or median filter (default).
+    The pose predictions are fitted with ARIMA model (filtertype='arima') or median
+    filter (default).
 
-    Parameter
+    Parameters
     ----------
     config : string
-        Full path of the config.yaml file as a string.
+        Full path of the config.yaml file.
 
     video : string
-        Full path of the video to extract the frame from. Make sure that this video is already analyzed.
+        Full path of the video to extract the frame from. Make sure that this video is
+        already analyzed.
 
-    shuffle : int, optional
-        The shufle index of training dataset. The extracted frames will be stored in the labeled-dataset for
-        the corresponding shuffle of training dataset. Default is set to 1
+    shuffle : int, optional, default=1
+        The shuffle index of training dataset. The extracted frames will be stored in
+        the labeled-dataset for the corresponding shuffle of training dataset.
 
-    trainingsetindex: int, optional
-        Integer specifying which TrainingsetFraction to use. By default the first (note that TrainingFraction is a list in config.yaml).
+    trainingsetindex: int, optional, default=0
+        Integer specifying which TrainingsetFraction to use.
+        Note that TrainingFraction is a list in config.yaml.
 
-    filtertype: string
-        Select which filter, 'arima', 'median' or 'spline'.
+    filtertype: string, optional, default="median".
+        The filter type - 'arima', 'median' or 'spline'.
 
-    windowlength: int
-        For filtertype='median' filters the input array using a local window-size given by windowlength. The array will automatically be zero-padded.
-        https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.medfilt.html The windowlenght should be an odd number.
+    windowlength: int, optional, default=5
+        For filtertype='median' filters the input array using a local window-size given
+        by windowlength. The array will automatically be zero-padded.
+        https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.medfilt.html.
+        The windowlenght should be an odd number.
         If filtertype='spline', windowlength is the maximal gap size to fill.
 
-    p_bound: float between 0 and 1, optional
+    p_bound: float between 0 and 1, optional, default=0.001
         For filtertype 'arima' this parameter defines the likelihood below,
         below which a body part will be consided as missing data for filtering purposes.
 
-    ARdegree: int, optional
+    ARdegree: int, optional, default=3
         For filtertype 'arima' Autoregressive degree of Sarimax model degree.
         see https://www.statsmodels.org/dev/generated/statsmodels.tsa.statespace.sarimax.SARIMAX.html
 
-    MAdegree: int
-        For filtertype 'arima' Moving Avarage degree of Sarimax model degree.
+    MAdegree: int, optional, default=1
+        For filtertype 'arima' Moving Average degree of Sarimax model degree.
         See https://www.statsmodels.org/dev/generated/statsmodels.tsa.statespace.sarimax.SARIMAX.html
 
-    alpha: float
+    alpha: float, optional, default=0.01
         Significance level for detecting outliers based on confidence interval of fitted SARIMAX model.
 
-    save_as_csv: bool, optional
-        Saves the predictions in a .csv file. The default is ``False``; if provided it must be either ``True`` or ``False``
+    save_as_csv: bool, optional, default=True
+        Saves the predictions in a .csv file.
 
-    destfolder: string, optional
-        Specifies the destination folder for analysis data (default is the path of the video). Note that for subsequent analysis this
-        folder also needs to be passed.
+    destfolder: string, optional, default=None
+        Specifies the destination folder for analysis data. If ``None``, the path of
+        the video is used by default. Note that for subsequent analysis this folder
+        also needs to be passed.
 
-    Example
+    modelprefix: str, optional, default=""
+        Directory containing the deeplabcut models to use when evaluating the network.
+        By default, the models are assumed to exist in the project folder.
+
+    track_method: string, optional, default=""
+        Specifies the tracker used to generate the data.
+        Empty by default (corresponding to a single animal project).
+        For multiple animals, must be either 'box', 'skeleton', or 'ellipse' and will
+        be taken from the config.yaml file if none is given.
+
+    Returns
+    -------
+    None
+
+    Examples
     --------
-    Arima model:
-    deeplabcut.filterpredictions('C:\\myproject\\reaching-task\\config.yaml',['C:\\myproject\\trailtracking-task\\test.mp4'],shuffle=3,filterype='arima',ARdegree=5,MAdegree=2)
 
-    Use median filter over 10bins:
-    deeplabcut.filterpredictions('C:\\myproject\\reaching-task\\config.yaml',['C:\\myproject\\trailtracking-task\\test.mp4'],shuffle=3,windowlength=10)
+    Arima model:
+
+    >>> deeplabcut.filterpredictions(
+            'C:\\myproject\\reaching-task\\config.yaml',
+            ['C:\\myproject\\trailtracking-task\\test.mp4'],
+            shuffle=3,
+            filterype='arima',
+            ARdegree=5,
+            MAdegree=2,
+        )
+
+    Use median filter over 10 bins:
+
+    >>> deeplabcut.filterpredictions(
+            'C:\\myproject\\reaching-task\\config.yaml',
+            ['C:\\myproject\\trailtracking-task\\test.mp4'],
+            shuffle=3,
+            windowlength=10,
+        )
 
     One can then use the filtered rather than the frame-by-frame predictions by calling:
 
-    deeplabcut.plot_trajectories('C:\\myproject\\reaching-task\\config.yaml',['C:\\myproject\\trailtracking-task\\test.mp4'],shuffle=3,filtered=True)
+    >>> deeplabcut.plot_trajectories(
+            'C:\\myproject\\reaching-task\\config.yaml',
+            ['C:\\myproject\\trailtracking-task\\test.mp4'],
+            shuffle=3,
+            filtered=True,
+        )
 
-    deeplabcut.create_labeled_video('C:\\myproject\\reaching-task\\config.yaml',['C:\\myproject\\trailtracking-task\\test.mp4'],shuffle=3,filtered=True)
-    --------
-
-    Returns filtered pandas array with the same structure as normal output of network.
+    >>> deeplabcut.create_labeled_video(
+            'C:\\myproject\\reaching-task\\config.yaml',
+            ['C:\\myproject\\trailtracking-task\\test.mp4'],
+            shuffle=3,
+            filtered=True,
+        )
     """
     cfg = auxiliaryfunctions.read_config(config)
-    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.GetScorerName(
+    track_method = auxfun_multianimal.get_track_method(cfg, track_method=track_method)
+
+    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.get_scorer_name(
         cfg,
         shuffle,
         trainFraction=cfg["TrainingFraction"][trainingsetindex],
         modelprefix=modelprefix,
     )
-    Videos = auxiliaryfunctions.Getlistofvideos(video, videotype)
+    Videos = auxiliaryfunctions.get_list_of_videos(video, videotype)
 
     if not len(Videos):
-        print("No video(s) were found. Please check your paths and/or 'video_type'.")
+        print("No video(s) were found. Please check your paths and/or 'videotype'.")
         return
 
     for video in Videos:

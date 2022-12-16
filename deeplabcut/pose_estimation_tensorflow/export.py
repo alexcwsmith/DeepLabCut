@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
@@ -16,7 +16,6 @@ import tarfile
 import numpy as np
 import ruamel.yaml
 import tensorflow as tf
-from tensorflow.python.tools import freeze_graph
 
 from deeplabcut.utils import auxiliaryfunctions
 from deeplabcut.pose_estimation_tensorflow.config import load_config
@@ -114,7 +113,7 @@ def load_model(cfg, shuffle=1, trainingsetindex=0, TFGPUinference=True, modelpre
     model_folder = os.path.join(
         cfg["project_path"],
         str(
-            auxiliaryfunctions.GetModelFolder(
+            auxiliaryfunctions.get_model_folder(
                 train_fraction, shuffle, cfg, modelprefix=modelprefix
             )
         ),

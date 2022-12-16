@@ -1,9 +1,9 @@
 """
 DeepLabCut2.2 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Adapted from DeeperCut by Eldar Insafutdinov
@@ -23,6 +23,7 @@ class PoseDatasetFactory:
                 warnings.warn("Overwriting existing dataset {}.")
             cls._datasets[type_] = dataset
             return dataset
+
         return wrapper
 
     @classmethod

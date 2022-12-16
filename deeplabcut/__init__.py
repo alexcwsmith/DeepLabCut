@@ -15,34 +15,24 @@ import tensorflow as tf
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 DEBUG = True and "DEBUG" in os.environ and os.environ["DEBUG"]
-from deeplabcut import DEBUG
+from deeplabcut.version import __version__, VERSION
 
-# DLClight version does not support GUIs. Importing accordingly
-import matplotlib as mpl
+print(f"Loading DLC {VERSION}...")
 
 try:
-    import wx
-
-    mpl.use("WxAgg")
-    from deeplabcut import generate_training_dataset
-    from deeplabcut import refine_training_dataset
-
-    from deeplabcut.gui import select_crop_parameters
-    from deeplabcut.gui.launch_script import launch_dlc
-    from deeplabcut.gui.label_frames import label_frames
-    from deeplabcut.gui.refine_labels import refine_labels
     from deeplabcut.gui.tracklet_toolbox import refine_tracklets
+    print("Imported DLC forked from alexcwsmith, last merged 12/15/22")
+    from deeplabcut.gui.launch_script import launch_dlc
+    from deeplabcut.gui.tabs.label_frames import (
+        label_frames,
+        refine_labels,
+    )
+    from deeplabcut.gui.widgets import SkeletonBuilder
 
-    from deeplabcut.utils.skeleton import SkeletonBuilder
-    print("Imported DLC forked from alexcwsmith, last rebased 9/18/21")
 except (ModuleNotFoundError, ImportError):
     print(
         "DLC loaded in light mode; you cannot use any GUI (labeling, relabeling and standalone GUI)"
     )
-    mpl.use(
-        "AGG"
-    )  # anti-grain geometry engine #https://matplotlib.org/faq/usage_faq.html
-
 
 from deeplabcut.create_project import (
     create_new_project,
@@ -68,6 +58,7 @@ from deeplabcut.generate_training_dataset import (
     dropimagesduetolackofannotation,
     adddatasetstovideolistandviceversa,
     dropduplicatesinannotatinfiles,
+    dropunlabeledframes
 )
 from deeplabcut.utils import (
     create_labeled_video,
@@ -76,10 +67,21 @@ from deeplabcut.utils import (
     auxiliaryfunctions,
     convert2_maDLC,
     convertcsv2h5,
-    convertannotationdata_fromwindows2unixstyle,
     analyze_videos_converth5_to_csv,
+    analyze_videos_converth5_to_nwb,
     auxfun_videos,
 )
+
+try:
+    from deeplabcut.pose_tracking_pytorch import transformer_reID
+except ModuleNotFoundError as e:
+    import warnings
+    warnings.warn(
+        """
+        As PyTorch is not installed, unsupervised identity learning will not be available.
+        Please run `pip install torch`, or ignore this warning.
+        """
+    )
 
 from deeplabcut.utils.auxfun_videos import (
     ShortenVideo,
@@ -95,6 +97,7 @@ from deeplabcut.pose_estimation_tensorflow import (
     evaluate_network,
     return_evaluate_network_data,
     analyze_videos,
+    create_tracking_dataset,
     analyze_time_lapse_frames,
     convert_detections2tracklets,
     extract_maps,
@@ -104,6 +107,7 @@ from deeplabcut.pose_estimation_tensorflow import (
     extract_save_all_maps,
     export_model,
 )
+
 
 from deeplabcut.pose_estimation_3d import (
     calibrate_cameras,
@@ -120,5 +124,3 @@ from deeplabcut.refine_training_dataset import (
 )
 from deeplabcut.post_processing import filterpredictions, analyzeskeleton
 
-
-from deeplabcut.version import __version__, VERSION

@@ -1,10 +1,10 @@
 """
 DeepLabCut2.2 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Adapted from DeeperCut by Eldar Insafutdinov
@@ -27,7 +27,7 @@ from deeplabcut.pose_estimation_tensorflow.core.train import (
     setup_preloading,
     start_preloading,
     get_optimizer,
-    LearningRate
+    LearningRate,
 )
 
 
@@ -38,7 +38,7 @@ def train(
     maxiters,
     max_to_keep=5,
     keepdeconvweights=True,
-    allow_growth=False,
+    allow_growth=True,
 ):
     start_path = os.getcwd()
     os.chdir(
@@ -88,10 +88,13 @@ def train(
                 include=["MobilenetV2"]
             )
         elif "efficientnet" in net_type:
-            variables_to_restore = slim.get_variables_to_restore(include=["efficientnet"])
+            variables_to_restore = slim.get_variables_to_restore(
+                include=["efficientnet"]
+            )
             variables_to_restore = {
-                    var.op.name.replace("efficientnet/", "")
-                    + "/ExponentialMovingAverage":var for var in variables_to_restore
+                var.op.name.replace("efficientnet/", "")
+                + "/ExponentialMovingAverage": var
+                for var in variables_to_restore
             }
         else:
             print("Wait for DLC 2.3.")
@@ -100,7 +103,7 @@ def train(
     restorer = tf.compat.v1.train.Saver(variables_to_restore)
     saver = tf.compat.v1.train.Saver(
         max_to_keep=max_to_keep
-    )  # selects how many snapshots are stored, see https://github.com/AlexEMG/DeepLabCut/issues/8#issuecomment-387404835
+    )  # selects how many snapshots are stored, see https://github.com/DeepLabCut/DeepLabCut/issues/8#issuecomment-387404835
 
     if allow_growth:
         config = tf.compat.v1.ConfigProto()
@@ -145,17 +148,18 @@ def train(
     print("Training parameters:")
     print(cfg)
     print("Starting multi-animal training....")
+    max_iter += start_iter  # max_iter is relative to start_iter
     for it in range(start_iter, max_iter + 1):
         if "efficientnet" in net_type:
-            dict = {tstep: it}
-            current_lr = sess.run(learning_rate, feed_dict=dict)
+            lr_dict = {tstep: it - start_iter}
+            current_lr = sess.run(learning_rate, feed_dict=lr_dict)
         else:
-            current_lr = lr_gen.get_lr(it)
-            dict = {learning_rate: current_lr}
+            current_lr = lr_gen.get_lr(it - start_iter)
+            lr_dict = {learning_rate: current_lr}
 
         # [_, loss_val, summary] = sess.run([train_op, total_loss, merged_summaries],feed_dict={learning_rate: current_lr})
         [_, alllosses, loss_val, summary] = sess.run(
-            [train_op, losses, total_loss, merged_summaries], feed_dict=dict
+            [train_op, losses, total_loss, merged_summaries], feed_dict=lr_dict
         )
 
         partloss += alllosses["part_loss"]  # scoremap loss
@@ -199,12 +203,11 @@ def train(
             saver.save(sess, model_name, global_step=it)
 
     lrf.close()
-    
+
     sess.close()
     coord.request_stop()
     coord.join([thread])
-    
-        
+
     # return to original path.
     os.chdir(str(start_path))
 

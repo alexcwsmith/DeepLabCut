@@ -11,6 +11,7 @@ import math
 import logging
 import os
 import os.path
+import warnings
 
 from functools import lru_cache
 from pathlib import Path
@@ -175,10 +176,14 @@ def dropannotationfileentriesduetodeletedimages(config):
 
     for folder in folders:
         fn = os.path.join(str(folder), "CollectedData_" + cfg["scorer"] + ".h5")
-        DC = pd.read_hdf(fn)
+        try:
+            DC = pd.read_hdf(fn)
+        except FileNotFoundError:
+            print("Attention:", folder, "does not appear to have labeled data!")
+            continue
         dropped = False
         for imagename in DC.index:
-            if os.path.isfile(os.path.join(cfg["project_path"], imagename)):
+            if os.path.isfile(os.path.join(cfg["project_path"], *imagename)):
                 pass
             else:
                 print("Dropping...", imagename)
@@ -207,10 +212,13 @@ def dropimagesduetolackofannotation(config):
     folders = [Path(config).parent / "labeled-data" / Path(i) for i in video_names]
 
     for folder in folders:
-        fn = os.path.join(str(folder), "CollectedData_" + cfg["scorer"] + ".h5")
-        DC = pd.read_hdf(fn)
-        dropped = False
-        annotatedimages = [fn.split(os.sep)[-1] for fn in DC.index]
+        h5file = os.path.join(str(folder), "CollectedData_" + cfg["scorer"] + ".h5")
+        try:
+            DC = pd.read_hdf(h5file)
+        except FileNotFoundError:
+            print("Attention:", folder, "does not appear to have labeled data!")
+            continue
+        annotatedimages = [fn[-1] for fn in DC.index]
         imagelist = [fns for fns in os.listdir(str(folder)) if ".png" in fns]
         print("Annotated images: ", len(annotatedimages), " In folder:", len(imagelist))
         for imagename in imagelist:
@@ -224,7 +232,7 @@ def dropimagesduetolackofannotation(config):
                     print("Deleting", fullpath)
                     os.remove(fullpath)
 
-        annotatedimages = [fn.split(os.sep)[-1] for fn in DC.index]
+        annotatedimages = [fn[-1] for fn in DC.index]
         imagelist = [fns for fns in os.listdir(str(folder)) if ".png" in fns]
         print(
             "PROCESSED:",
@@ -235,6 +243,42 @@ def dropimagesduetolackofannotation(config):
             len(imagelist),
         )
 
+def dropunlabeledframes(config):
+    """
+    Drop entries such that all the bodyparts are not labeled from the annotation files, i.e. h5 and csv files
+    Will be carried out iteratively for all *folders* in labeled-data.
+
+    Parameter
+    ----------
+    config : string
+        String containing the full path of the config file in the project.
+
+    """
+    cfg = auxiliaryfunctions.read_config(config)
+    videos = cfg["video_sets"].keys()
+    video_names = [Path(i).stem for i in videos]
+    folders = [Path(config).parent / "labeled-data" / Path(i) for i in video_names]
+
+    for folder in folders:
+        h5file =  os.path.join(str(folder), "CollectedData_" + cfg["scorer"] + ".h5")
+        try:
+            DC = pd.read_hdf(h5file)
+        except FileNotFoundError:
+            print("Skipping ",folder,"...")
+            continue
+        before_len = len(DC.index)
+        DC = DC.dropna(how='all') # drop rows where all values are missing(NaN)
+        after_len = len(DC.index)
+        dropped = before_len - after_len
+        if dropped:
+            DC.to_hdf(h5file, key="df_with_missing", mode="w")
+            DC.to_csv(
+                os.path.join(str(folder), "CollectedData_" + cfg["scorer"] + ".csv")
+            )
+
+            print("Dropped ", dropped, "entries in ",folder)
+
+    print("Done.")
 
 def cropimagesandlabels(
     config,
@@ -475,36 +519,46 @@ def check_labels(
     draw_skeleton=True,
     visualizeindividuals=True,
 ):
-    """
-    Double check if the labels were at correct locations and stored in a proper file format.\n
-    This creates a new subdirectory for each video under the 'labeled-data' and all the frames are plotted with the labels.\n
+    """Check the labeled frames.
+
+    Double check if the labels were at the correct locations and stored in the proper
+    file format.
+
+    This creates a new subdirectory for each video under the 'labeled-data' and all the
+    frames are plotted with the labels.
+
     Make sure that these labels are fine.
 
-    Parameter
+    Parameters
     ----------
     config : string
         Full path of the config.yaml file as a string.
 
-    Labels: List of at least 3 matplotlib markers. The first one will be used to indicate the human ground truth location (Default: +)
+    Labels: list, default='+'
+        List of at least 3 matplotlib markers. The first one will be used to indicate
+        the human ground truth location (Default: +)
 
-    scale : float, default =1
+    scale : float, default=1
         Change the relative size of the output images.
 
-    dpi : int, optional
-        Output resolution. 100 dpi by default.
+    dpi : int, optional, default=100
+        Output resolution in dpi.
 
-    draw_skeleton: bool, default True.
+    draw_skeleton: bool, default=True
         Plot skeleton overlaid over body parts.
 
-    visualizeindividuals: bool, default True:
-        For a multianimal project the different individuals have different colors (and all bodyparts the same).
-        If False, the colors change over bodyparts rather than individuals.
+    visualizeindividuals: bool, default: True.
+        For a multianimal project, if True, the different individuals have different
+        colors (and all bodyparts the same). If False, the colors change over bodyparts
+        rather than individuals.
 
-    Example
+    Returns
+    -------
+    None
+
+    Examples
     --------
-    for labeling the frames
     >>> deeplabcut.check_labels('/analysis/project/reaching-task/config.yaml')
-    --------
     """
 
     from deeplabcut.utils import visualization
@@ -523,6 +577,7 @@ def check_labels(
             DataCombined = pd.read_hdf(
                 os.path.join(str(folder), "CollectedData_" + cfg["scorer"] + ".h5")
             )
+            conversioncode.guarantee_multiindex_rows(DataCombined)
             if cfg.get("multianimalproject", False):
                 color_by = "individual" if visualizeindividuals else "bodypart"
             else:  # for single animal projects
@@ -634,7 +689,7 @@ def _robust_path_split(path):
     return parent, filename, ext
 
 
-def merge_annotateddatasets(cfg, trainingsetfolder_full, windows2linux):
+def merge_annotateddatasets(cfg, trainingsetfolder_full):
     """
     Merges all the h5 files for all labeled-datasets (from individual videos).
 
@@ -652,12 +707,10 @@ def merge_annotateddatasets(cfg, trainingsetfolder_full, windows2linux):
         )
         try:
             data = pd.read_hdf(file_path)
+            conversioncode.guarantee_multiindex_rows(data)
             AnnotationData.append(data)
         except FileNotFoundError:
-            print(
-                file_path,
-                " not found (perhaps not annotated)."
-            )
+            print(file_path, " not found (perhaps not annotated).")
 
     if not len(AnnotationData):
         print(
@@ -684,30 +737,9 @@ def merge_annotateddatasets(cfg, trainingsetfolder_full, windows2linux):
     AnnotationData = AnnotationData.reindex(
         bodyparts, axis=1, level=AnnotationData.columns.names.index("bodyparts")
     )
-
-    # Let's check if the code is *not* run on windows (Source: #https://stackoverflow.com/questions/1325581/how-do-i-check-if-im-running-on-windows-in-python)
-    # but the paths are in windows format...
-    windowspath = "\\" in AnnotationData.index[0]
-    if os.name != "nt" and windowspath and not windows2linux:
-        print(
-            "It appears that the images were labeled on a Windows system, but you are currently trying to create a training set on a Unix system. \n In this case the paths should be converted. Do you want to proceed with the conversion?"
-        )
-        askuser = input("yes/no")
-    else:
-        askuser = "no"
-
     filename = os.path.join(trainingsetfolder_full, f'CollectedData_{cfg["scorer"]}')
-    if (
-        windows2linux or askuser == "yes" or askuser == "y" or askuser == "Ja"
-    ):  # convert windows path in pandas array \\ to unix / !
-        AnnotationData = conversioncode.convertpaths_to_unixstyle(
-            AnnotationData, filename
-        )
-        print("Annotation data converted to unix format...")
-    else:  # store as is
-        AnnotationData.to_hdf(filename + ".h5", key="df_with_missing", mode="w")
-        AnnotationData.to_csv(filename + ".csv")  # human readable.
-
+    AnnotationData.to_hdf(filename + ".h5", key="df_with_missing", mode="w")
+    AnnotationData.to_csv(filename + ".csv")  # human readable.
     return AnnotationData
 
 
@@ -741,19 +773,11 @@ def SplitTrials(
         train_indices = shuffle[: int(train_size)]
         if enforce_train_fraction and not train_size.is_integer():
             train_indices, test_indices = pad_train_test_indices(
-                train_indices, test_indices, train_fraction,
+                train_indices,
+                test_indices,
+                train_fraction,
             )
-            # Determine the index length required to guarantee
-            # the train–test ratio is exactly the desired one.
-            min_length_req = int(100 / math.gcd(100, int(round(100 * train_fraction))))
-            length_req = math.ceil(index_len / min_length_req) * min_length_req
-            n_train = int(round(length_req * train_fraction))
-            n_test = length_req - n_train
-            # Pad indices so lengths agree
-            train_indices = np.append(
-                train_indices, [-1] * (n_train - len(train_indices))
-            )
-            test_indices = np.append(test_indices, [-1] * (n_test - len(test_indices)))
+
         return train_indices, test_indices
 
 
@@ -781,7 +805,7 @@ def pad_train_test_indices(train_inds, test_inds, train_fraction):
     return train_inds, test_inds
 
 
-def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
+def mergeandsplit(config, trainindex=0, uniform=True):
     """
     This function allows additional control over "create_training_dataset".
 
@@ -789,7 +813,7 @@ def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
     Importantly, this allows one to freeze a split.
 
     One can also either create a uniform split (uniform = True; thereby indexing TrainingFraction in config file) or leave-one-folder out split
-    by passing the index of the corrensponding video from the config.yaml file as variable trainindex.
+    by passing the index of the corresponding video from the config.yaml file as variable trainindex.
 
     Parameter
     ----------
@@ -802,10 +826,6 @@ def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
 
     uniform: bool, optional
         Perform uniform split (disregarding folder structure in labeled data), or (if False) leave one folder out.
-
-    windows2linux: bool.
-        The annotation files contain path formated according to your operating system. If you label on windows
-        but train & evaluate on a unix system (e.g. ubunt, colab, Mac) set this variable to True to convert the paths.
 
     Examples
     --------
@@ -828,7 +848,7 @@ def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
     scorer = cfg["scorer"]
     project_path = cfg["project_path"]
     # Create path for training sets & store data there
-    trainingsetfolder = auxiliaryfunctions.GetTrainingSetFolder(
+    trainingsetfolder = auxiliaryfunctions.get_training_set_folder(
         cfg
     )  # Path concatenation OS platform independent
     auxiliaryfunctions.attempttomakefolder(
@@ -842,11 +862,11 @@ def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
         Data = merge_annotateddatasets(
             cfg,
             Path(os.path.join(project_path, trainingsetfolder)),
-            windows2linux=windows2linux,
         )
         if Data is None:
             return [], []
 
+    conversioncode.guarantee_multiindex_rows(Data)
     Data = Data[scorer]  # extract labeled data
 
     if uniform == True:
@@ -863,8 +883,7 @@ def mergeandsplit(config, trainindex=0, uniform=True, windows2linux=False):
         print("Excluding the following folder (from training):", test_video_name)
         trainIndices, testIndices = [], []
         for index, name in enumerate(Data.index):
-            # print(index,name.split(os.sep)[1])
-            if test_video_name == name.split(os.sep)[1]:  # this is the video name
+            if test_video_name == name[1]:  # this is the video name
                 # print(name,test_video_name)
                 testIndices.append(index)
             else:
@@ -894,7 +913,7 @@ def format_training_data(df, train_inds, nbodyparts, project_path):
         data = dict()
         filename = df.index[i]
         data["image"] = filename
-        img_shape = read_image_shape_fast(os.path.join(project_path, filename))
+        img_shape = read_image_shape_fast(os.path.join(project_path, *filename))
         data["size"] = img_shape
         temp = df.iloc[i].values.reshape(-1, 2)
         joints = np.c_[range(nbodyparts), temp]
@@ -934,36 +953,33 @@ def create_training_dataset(
     augmenter_type=None,
     posecfg_template=None,
 ):
-    """
-    Creates a training dataset. Labels from all the extracted frames are merged into a single .h5 file.\n
-    Only the videos included in the config file are used to create this dataset.\n
+    """Creates a training dataset.
 
-    [OPTIONAL] Use the function 'add_new_video' at any stage of the project to add more videos to the project.
+    Labels from all the extracted frames are merged into a single .h5 file.
+    Only the videos included in the config file are used to create this dataset.
 
-    Parameter
+    Parameters
     ----------
     config : string
-        Full path of the config.yaml file as a string.
+        Full path of the ``config.yaml`` file as a string.
 
-    num_shuffles : int, optional
-        Number of shuffles of training dataset to create, i.e. [1,2,3] for num_shuffles=3. Default is set to 1.
+    num_shuffles : int, optional, default=1
+        Number of shuffles of training dataset to create, i.e. ``[1,2,3]`` for
+        ``num_shuffles=3``.
 
-    Shuffles: list of shuffles.
-        Alternatively the user can also give a list of shuffles (integers!).
+    Shuffles: list[int], optional
+        Alternatively the user can also give a list of shuffles.
 
-    windows2linux: bool.
-        The annotation files contain path formated according to your operating system. If you label on windows
-        but train & evaluate on a unix system (e.g. ubunt, colab, Mac) set this variable to True to convert the paths.
+    userfeedback: bool, optional, default=False
+        If ``False``, all requested train/test splits are created (no matter if they
+        already exist). If you want to assure that previous splits etc. are not
+        overwritten, set this to ``True`` and you will be asked for each split.
 
-    userfeedback: bool, optional
-        If this is set to false, then all requested train/test splits are created (no matter if they already exist). If you
-        want to assure that previous splits etc. are not overwritten, then set this to True and you will be asked for each split.
-
-    trainIndices: list of lists, optional (default=None)
+    trainIndices: list of lists, optional, default=None
         List of one or multiple lists containing train indexes.
         A list containing two lists of training indexes will produce two splits.
 
-    testIndices: list of lists, optional (default=None)
+    testIndices: list of lists, optional, default=None
         List of one or multiple lists containing test indexes.
 
     net_type: list
@@ -978,21 +994,84 @@ def create_training_dataset(
         Path to a pose_cfg.yaml file to use as a template for generating the new one for the current iteration. Useful if you
         would like to start with the same parameters a previous training iteration. None uses the default pose_cfg.yaml.
 
-    Example
+    net_type: list, optional, default=None
+        Type of networks. Currently supported options are
+
+        * ``resnet_50``
+        * ``resnet_101``
+        * ``resnet_152``
+        * ``mobilenet_v2_1.0``
+        * ``mobilenet_v2_0.75``
+        * ``mobilenet_v2_0.5``
+        * ``mobilenet_v2_0.35``
+        * ``efficientnet-b0``
+        * ``efficientnet-b1``
+        * ``efficientnet-b2``
+        * ``efficientnet-b3``
+        * ``efficientnet-b4``
+        * ``efficientnet-b5``
+        * ``efficientnet-b6``
+
+    augmenter_type: string, optional, default=None
+        Type of augmenter. Currently supported augmenters are
+        
+        * ``default``
+        * ``scalecrop``
+        * ``imgaug``
+        * ``tensorpack``
+        * ``deterministic``
+
+    posecfg_template: string, optional, default=None
+        Path to a ``pose_cfg.yaml`` file to use as a template for generating the new
+        one for the current iteration. Useful if you would like to start with the same
+        parameters a previous training iteration. None uses the default
+        ``pose_cfg.yaml``.
+
+    Returns
+    -------
+    list(tuple) or None
+        If training dataset was successfully created, a list of tuples is returned.
+        The first two elements in each tuple represent the training fraction and the
+        shuffle value. The last two elements in each tuple are arrays of integers
+        representing the training and test indices.
+
+        Returns None if training dataset could not be created.
+
+    Notes
+    -----
+    Use the function ``add_new_videos`` at any stage of the project to add more videos
+    to the project.
+
+    Examples
     --------
-    >>> deeplabcut.create_training_dataset('/analysis/project/reaching-task/config.yaml',num_shuffles=1)
-    Windows:
-    >>> deeplabcut.create_training_dataset('C:\\Users\\Ulf\\looming-task\\config.yaml',Shuffles=[3,17,5])
-    --------
+
+    Linux/MacOS
+
+    >>> deeplabcut.create_training_dataset(
+            '/analysis/project/reaching-task/config.yaml', num_shuffles=1,
+        )
+
+    Windows
+
+    >>> deeplabcut.create_training_dataset(
+            'C:\\Users\\Ulf\\looming-task\\config.yaml', Shuffles=[3,17,5],
+        )
     """
     import scipy.io as sio
+
+    if windows2linux:
+        # DeprecationWarnings are silenced since Python 3.2 unless triggered in __main__
+        warnings.warn(
+            "`windows2linux` has no effect since 2.2.0.4 and will be removed in 2.2.1.",
+            FutureWarning,
+        )
 
     # Loading metadata from config file:
     cfg = auxiliaryfunctions.read_config(config)
     if posecfg_template:
         if not posecfg_template.endswith("pose_cfg.yaml"):
-            raise NameError(
-                "prior_posecfg argument must contain path to a pose_cfg.yaml file"
+            raise ValueError(
+                "posecfg_template argument must contain path to a pose_cfg.yaml file"
             )
         else:
             print("Reloading pose_cfg parameters from " + posecfg_template +'\n')
@@ -1005,13 +1084,13 @@ def create_training_dataset(
         )
 
         create_multianimaltraining_dataset(
-            config, num_shuffles, Shuffles, windows2linux, net_type
+            config, num_shuffles, Shuffles, net_type=net_type
         )
     else:
         scorer = cfg["scorer"]
         project_path = cfg["project_path"]
         # Create path for training sets & store data there
-        trainingsetfolder = auxiliaryfunctions.GetTrainingSetFolder(
+        trainingsetfolder = auxiliaryfunctions.get_training_set_folder(
             cfg
         )  # Path concatenation OS platform independent
         auxiliaryfunctions.attempttomakefolder(
@@ -1019,7 +1098,8 @@ def create_training_dataset(
         )
 
         Data = merge_annotateddatasets(
-            cfg, Path(os.path.join(project_path, trainingsetfolder)), windows2linux
+            cfg,
+            Path(os.path.join(project_path, trainingsetfolder)),
         )
         if Data is None:
             return
@@ -1069,7 +1149,7 @@ def create_training_dataset(
             defaultconfigfile = os.path.join(dlcparent_path, "pose_cfg.yaml")
         elif posecfg_template:
             defaultconfigfile = posecfg_template
-        model_path, num_shuffles = auxfun_models.Check4weights(
+        model_path, num_shuffles = auxfun_models.check_for_weights(
             net_type, Path(dlcparent_path), num_shuffles
         )
 
@@ -1145,7 +1225,7 @@ def create_training_dataset(
                 (
                     datafilename,
                     metadatafilename,
-                ) = auxiliaryfunctions.GetDataandMetaDataFilenames(
+                ) = auxiliaryfunctions.get_data_and_metadata_filenames(
                     trainingsetfolder, trainFraction, shuffle, cfg
                 )
 
@@ -1162,7 +1242,7 @@ def create_training_dataset(
                 ################################################################################
                 # Saving metadata (Pickle file)
                 ################################################################################
-                auxiliaryfunctions.SaveMetadata(
+                auxiliaryfunctions.save_metadata(
                     os.path.join(project_path, metadatafilename),
                     data,
                     trainIndices,
@@ -1174,7 +1254,7 @@ def create_training_dataset(
                 # Creating file structure for training &
                 # Test files as well as pose_yaml files (containing training and testing information)
                 #################################################################################
-                modelfoldername = auxiliaryfunctions.GetModelFolder(
+                modelfoldername = auxiliaryfunctions.get_model_folder(
                     trainFraction, shuffle, cfg
                 )
                 auxiliaryfunctions.attempttomakefolder(
@@ -1221,6 +1301,9 @@ def create_training_dataset(
                     # these values are dropped as scalecrop
                     # doesn't have rotation implemented
                     items2drop = {"rotation": 0, "rotratio": 0.0}
+                # Also drop maDLC smart cropping augmentation parameters
+                for key in ["pre_resize", "crop_size", "max_shift", "crop_sampling"]:
+                    items2drop[key] = None
 
                 trainingdata = MakeTrain_pose_yaml(
                     items2change, path_train_config, defaultconfigfile, items2drop
@@ -1253,12 +1336,14 @@ def get_largestshuffle_index(config):
     dlc_model_path = os.path.join(project_path, "dlc-models", iterate)
     if os.path.isdir(dlc_model_path):
         models = os.listdir(dlc_model_path)
-        # sort the models directories
+        # sort the model directories
         models.sort(key=lambda f: int("".join(filter(str.isdigit, f))))
-        # get the shuffle index
-        max_shuffle_index = int(models[-1].split("shuffle")[-1])
+
+        # get the shuffle index and offset by 1.
+        max_shuffle_index = int(models[-1].split("shuffle")[-1]) + 1
     else:
         max_shuffle_index = 0
+
     return max_shuffle_index
 
 
@@ -1267,55 +1352,103 @@ def create_training_model_comparison(
     trainindex=0,
     num_shuffles=1,
     net_types=["resnet_50"],
-    augmenter_types=["default"],
+    augmenter_types=["imgaug"],
     userfeedback=False,
     windows2linux=False,
 ):
-    """
-    Creates a training dataset with different networks and augmentation types (dataset_loader) so that the shuffles
-    have same training and testing indices.
+    """Creates a training dataset to compare networks and augmentation types.
 
-    Therefore, this function is useful for benchmarking the performance of different network and augmentation types on the same training/testdata.\n
+    The datasets are created such that the shuffles have same training and testing
+    indices. Therefore, this function is useful for benchmarking the performance of
+    different network and augmentation types on the same training/testdata.
 
-    Parameter
+    Parameters
     ----------
-    config : string
-        Full path of the config.yaml file as a string.
+    config: str
+        Full path of the config.yaml file.
 
-    trainindex: int, optional
-        Either (in case uniform = True) indexes which element of TrainingFraction in the config file should be used (note it is a list!).
-        Alternatively (uniform = False) indexes which folder is dropped, i.e. the first if trainindex=0, the second if trainindex =1, etc.
+    trainindex: int, optional, default=0
+        Either (in case uniform = True) indexes which element of TrainingFraction in
+        the config file should be used (note it is a list!).
+        Alternatively (uniform = False) indexes which folder is dropped, i.e. the first
+        if trainindex=0, the second if trainindex=1, etc.
 
-    num_shuffles : int, optional
-        Number of shuffles of training dataset to create, i.e. [1,2,3] for num_shuffles=3. Default is set to 1.
+    num_shuffles : int, optional, default=1
+        Number of shuffles of training dataset to create,
+        i.e. [1,2,3] for num_shuffles=3.
 
-    net_types: list
-        Type of networks. Currently resnet_50, resnet_101, resnet_152, mobilenet_v2_1.0,mobilenet_v2_0.75, mobilenet_v2_0.5, mobilenet_v2_0.35,
-        efficientnet-b0, efficientnet-b1, efficientnet-b2, efficientnet-b3, efficientnet-b4,
-        efficientnet-b5, and efficientnet-b6 are supported.
+    net_types: list[str], optional, default=["resnet_50"]
+        Currently supported networks are
 
-    augmenter_types: list
-        Type of augmenters. Currently "default", "imgaug", "tensorpack", and "deterministic" are supported.
+        * ``"resnet_50"``
+        * ``"resnet_101"``
+        * ``"resnet_152"``
+        * ``"mobilenet_v2_1.0"``
+        * ``"mobilenet_v2_0.75"``
+        * ``"mobilenet_v2_0.5"``
+        * ``"mobilenet_v2_0.35"``
+        * ``"efficientnet-b0"``
+        * ``"efficientnet-b1"``
+        * ``"efficientnet-b2"``
+        * ``"efficientnet-b3"``
+        * ``"efficientnet-b4"``
+        * ``"efficientnet-b5"``
+        * ``"efficientnet-b6"``
 
-    userfeedback: bool, optional
-        If this is set to false, then all requested train/test splits are created (no matter if they already exist). If you
-        want to assure that previous splits etc. are not overwritten, then set this to True and you will be asked for each split.
+    augmenter_types: list[str], optional, default=["imgaug"]
+        Currently supported augmenters are
 
-    windows2linux: bool.
-        The annotation files contain path formated according to your operating system. If you label on windows
-        but train & evaluate on a unix system (e.g. ubunt, colab, Mac) set this variable to True to convert the paths.
+        * ``"default"``
+        * ``"imgaug"``
+        * ``"tensorpack"``
+        * ``"deterministic"``
 
-    Example
+    userfeedback: bool, optional, default=False
+        If ``False``, then all requested train/test splits are created, no matter if
+        they already exist. If you want to assure that previous splits etc. are not
+        overwritten, then set this to True and you will be asked for each split.
+
+    windows2linux
+
+        ..deprecated::
+            Has no effect since 2.2.0.4 and will be removed in 2.2.1.
+
+    Returns
+    -------
+    shuffle_list: list
+        List of indices corresponding to the trainingsplits/models that were created.
+
+    Examples
     --------
-    >>> deeplabcut.create_training_model_comparison('/analysis/project/reaching-task/config.yaml',num_shuffles=1,net_types=['resnet_50','resnet_152'],augmenter_types=['tensorpack','deterministic'])
+    On Linux/MacOS
 
-    Windows:
-    >>> deeplabcut.create_training_model_comparison('C:\\Users\\Ulf\\looming-task\\config.yaml',num_shuffles=1,net_types=['resnet_50','resnet_152'],augmenter_types=['tensorpack','deterministic'])
+    >>> shuffle_list = deeplabcut.create_training_model_comparison(
+            '/analysis/project/reaching-task/config.yaml',
+            num_shuffles=1,
+            net_types=['resnet_50','resnet_152'],
+            augmenter_types=['tensorpack','deterministic'],
+        )
 
-    --------
+    On Windows
+
+    >>> shuffle_list = deeplabcut.create_training_model_comparison(
+            'C:\\Users\\Ulf\\looming-task\\config.yaml',
+            num_shuffles=1,
+            net_types=['resnet_50','resnet_152'],
+            augmenter_types=['tensorpack','deterministic'],
+        )
+
+    See ``examples/testscript_openfielddata_augmentationcomparison.py`` for an example
+    of how to use ``shuffle_list``.
     """
     # read cfg file
     cfg = auxiliaryfunctions.read_config(config)
+
+    if windows2linux:
+        warnings.warn(
+            "`windows2linux` has no effect since 2.2.0.4 and will be removed in 2.2.1.",
+            FutureWarning,
+        )
 
     # create log file
     log_file_name = os.path.join(cfg["project_path"], "training_model_comparison.log")
@@ -1332,6 +1465,7 @@ def create_training_model_comparison(
 
     largestshuffleindex = get_largestshuffle_index(config)
 
+    shuffle_list = []
     for shuffle in range(num_shuffles):
         trainIndices, testIndices = mergeandsplit(
             config, trainindex=trainindex, uniform=True
@@ -1344,6 +1478,8 @@ def create_training_model_comparison(
                     + idx_net * len(augmenter_types)
                     + shuffle * len(augmenter_types) * len(net_types)
                 )
+
+                shuffle_list.append(get_max_shuffle_idx)
                 log_info = str(
                     "Shuffle index:"
                     + str(get_max_shuffle_idx)
@@ -1353,6 +1489,8 @@ def create_training_model_comparison(
                     + aug
                     + ", trainsetindex:"
                     + str(trainindex)
+                    + ", frozen shuffle ID:"
+                    + str(shuffle)
                 )
                 create_training_dataset(
                     config,
@@ -1362,6 +1500,7 @@ def create_training_model_comparison(
                     testIndices=[testIndices],
                     augmenter_type=aug,
                     userfeedback=userfeedback,
-                    windows2linux=windows2linux,
                 )
                 logger.info(log_info)
+
+    return shuffle_list

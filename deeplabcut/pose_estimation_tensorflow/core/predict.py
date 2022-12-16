@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Adapted from DeeperCut by Eldar Insafutdinov
@@ -25,12 +25,16 @@ https://arxiv.org/abs/1909.11229
 import numpy as np
 import tensorflow as tf
 from deeplabcut.pose_estimation_tensorflow.nnets.factory import PoseNetFactory
+from .openvino.session import OpenVINOSession
 
 
-def setup_pose_prediction(cfg, allow_growth=False):
+def setup_pose_prediction(cfg, allow_growth=False, collect_extra=False):
     tf.compat.v1.reset_default_graph()
-    inputs = tf.compat.v1.placeholder(tf.float32, shape=[cfg['batch_size'], None, None, 3])
+    inputs = tf.compat.v1.placeholder(
+        tf.float32, shape=[cfg["batch_size"], None, None, 3]
+    )
     net_heads = PoseNetFactory.create(cfg).test(inputs)
+    extra_dict = {}
     outputs = [net_heads["part_prob"]]
     if cfg["location_refinement"]:
         outputs.append(net_heads["locref"])
@@ -40,6 +44,9 @@ def setup_pose_prediction(cfg, allow_growth=False):
         outputs.append(net_heads["pairwise_pred"])
 
     outputs.append(net_heads["peak_inds"])
+
+    if collect_extra:
+        extra_dict["features"] = net_heads["features"]
 
     restorer = tf.compat.v1.train.Saver()
 
@@ -55,11 +62,14 @@ def setup_pose_prediction(cfg, allow_growth=False):
     # Restore variables from disk.
     restorer.restore(sess, cfg["init_weights"])
 
-    return sess, inputs, outputs
+    if collect_extra:
+        return sess, inputs, outputs, extra_dict
+    else:
+        return sess, inputs, outputs
 
 
 def extract_cnn_output(outputs_np, cfg):
-    """ extract locref + scmap from network """
+    """extract locref + scmap from network"""
     scmap = outputs_np[0]
     scmap = np.squeeze(scmap)
     locref = None
@@ -112,7 +122,7 @@ def multi_pose_predict(scmap, locref, stride, num_outputs):
 
 
 def getpose(image, cfg, sess, inputs, outputs, outall=False):
-    """ Extract pose """
+    """Extract pose"""
     im = np.expand_dims(image, axis=0).astype(float)
     outputs_np = sess.run(outputs, feed_dict={inputs: im})
     scmap, locref = extract_cnn_output(outputs_np, cfg)
@@ -129,7 +139,7 @@ def getpose(image, cfg, sess, inputs, outputs, outall=False):
 
 ## Functions below implement are for batch sizes > 1:
 def extract_cnn_outputmulti(outputs_np, cfg):
-    """ extract locref + scmap from network
+    """extract locref + scmap from network
     Dimensions: image batch x imagedim1 x imagedim2 x bodypart"""
     scmap = outputs_np[0]
     locref = None
@@ -161,8 +171,8 @@ def get_top_values(scmap, n_top=5):
 
 
 def getposeNP(image, cfg, sess, inputs, outputs, outall=False):
-    """ Adapted from DeeperCut, performs numpy-based faster inference on batches.
-        Introduced in https://www.biorxiv.org/content/10.1101/457242v1 """
+    """Adapted from DeeperCut, performs numpy-based faster inference on batches.
+    Introduced in https://www.biorxiv.org/content/10.1101/457242v1"""
 
     num_outputs = cfg.get("num_outputs", 1)
     outputs_np = sess.run(outputs, feed_dict={inputs: image})
@@ -206,7 +216,9 @@ def getposeNP(image, cfg, sess, inputs, outputs, outall=False):
 ### Code for TF inference on GPU
 def setup_GPUpose_prediction(cfg, allow_growth=False):
     tf.compat.v1.reset_default_graph()
-    inputs = tf.compat.v1.placeholder(tf.float32, shape=[cfg['batch_size'], None, None, 3])
+    inputs = tf.compat.v1.placeholder(
+        tf.float32, shape=[cfg["batch_size"], None, None, 3]
+    )
     net_heads = PoseNetFactory.create(cfg).inference(inputs)
     outputs = [net_heads["pose"]]
 
@@ -230,3 +242,8 @@ def setup_GPUpose_prediction(cfg, allow_growth=False):
 
 def extract_GPUprediction(outputs, cfg):
     return outputs[0]
+
+
+def setup_openvino_pose_prediction(cfg, device):
+    sess = OpenVINOSession(cfg, device)
+    return sess, sess.input_name, [sess.output_name]

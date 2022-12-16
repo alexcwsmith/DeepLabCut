@@ -24,9 +24,20 @@ Modeloptions = [
     "mouse_pupil_vclose",
     "horse_sideview",
     "full_macaque",
-    "full_cheetah",
 ]  # just expand this list with new projects
 
+'''
+Modeloptions = [
+    "full_human",
+    "full_cat",
+    "full_dog",
+    "primate_face",
+    "mouse_pupil_vclose",
+    "horse_sideview",
+    "full_macaque",
+    "full_cheetah",
+]  # just expand this list with new projects
+'''
 
 def MakeTrain_pose_yaml(itemstochange, saveasconfigfile, defaultconfigfile):
     raw = open(defaultconfigfile).read()
@@ -68,7 +79,7 @@ def create_pretrained_human_project(
     videos,
     working_directory=None,
     copy_videos=False,
-    videotype=".mp4",
+    videotype="",
     createlabeledvideo=True,
     analyzevideo=True,
 ):
@@ -106,7 +117,7 @@ def create_pretrained_project(
     model="full_human",
     working_directory=None,
     copy_videos=False,
-    videotype=None,
+    videotype="",
     analyzevideo=True,
     filtered=True,
     createlabeledvideo=True,
@@ -143,7 +154,7 @@ def create_pretrained_project(
         ``True`` or ``False``.
 
     analyzevideo " bool, optional
-        If true, then the video is analzyed and a labeled video is created. If false, then only the project will be created and the weights downloaded. You can then access them
+        If true, then the video is analyzed and a labeled video is created. If false, then only the project will be created and the weights downloaded. You can then access them
 
     filtered: bool, default false
         Boolean variable indicating if filtered pose data output should be plotted rather than frame-by-frame predictions.
@@ -154,10 +165,10 @@ def create_pretrained_project(
 
     Example
     --------
-    Linux/MacOs loading full_human model and analzying video /homosapiens1.avi
+    Linux/MacOs loading full_human model and analyzing video /homosapiens1.avi
     >>> deeplabcut.create_pretrained_project('humanstrokestudy','Linus',['/data/videos/homosapiens1.avi'], copy_videos=False)
 
-    Loading full_cat model and analzying video "felixfeliscatus3.avi"
+    Loading full_cat model and analyzing video "felixfeliscatus3.avi"
     >>> deeplabcut.create_pretrained_project('humanstrokestudy','Linus',['/data/videos/felixfeliscatus3.avi'], model='full_cat')
 
     Windows:
@@ -219,7 +230,7 @@ def create_pretrained_project(
             os.path.join(
                 config["project_path"],
                 str(
-                    auxiliaryfunctions.GetModelFolder(
+                    auxiliaryfunctions.get_model_folder(
                         trainFraction=config["TrainingFraction"][0],
                         shuffle=1,
                         cfg=config,
@@ -232,7 +243,7 @@ def create_pretrained_project(
             os.path.join(
                 config["project_path"],
                 str(
-                    auxiliaryfunctions.GetModelFolder(
+                    auxiliaryfunctions.get_model_folder(
                         trainFraction=config["TrainingFraction"][0],
                         shuffle=1,
                         cfg=config,
@@ -246,7 +257,7 @@ def create_pretrained_project(
         train_dir.mkdir(parents=True, exist_ok=True)
         test_dir.mkdir(parents=True, exist_ok=True)
 
-        modelfoldername = auxiliaryfunctions.GetModelFolder(
+        modelfoldername = auxiliaryfunctions.get_model_folder(
             trainFraction=config["TrainingFraction"][0], shuffle=1, cfg=config
         )
         path_train_config = str(
@@ -261,31 +272,23 @@ def create_pretrained_project(
         )
 
         # Download the weights and put then in appropriate directory
-        print("Dowloading weights...")
-        auxfun_models.DownloadModel(model, train_dir)
+        print("Downloading weights...")
+
+        # AM: Rowland server down...
+        #auxfun_models.download_model(model, train_dir)
+        auxfun_models.download_hugginface_model(model, train_dir)
+
 
         pose_cfg = deeplabcut.auxiliaryfunctions.read_plainconfig(path_train_config)
         print(path_train_config)
         # Updating config file:
-        dict = {
+        dict_ = {
             "default_net_type": pose_cfg["net_type"],
             "default_augmenter": pose_cfg["dataset_type"],
             "bodyparts": pose_cfg["all_joints_names"],
-            "skeleton": [],  # TODO: update with paf_graph
             "dotsize": 6,
         }
-        auxiliaryfunctions.edit_config(cfg, dict)
-
-        # Create the pose_config.yaml files
-        parent_path = Path(os.path.dirname(deeplabcut.__file__))
-        defaultconfigfile = str(parent_path / "pose_cfg.yaml")
-        trainingsetfolder = auxiliaryfunctions.GetTrainingSetFolder(config)
-        datafilename, metadatafilename = auxiliaryfunctions.GetDataandMetaDataFilenames(
-            trainingsetfolder,
-            trainFraction=config["TrainingFraction"][0],
-            shuffle=1,
-            cfg=config,
-        )
+        auxiliaryfunctions.edit_config(cfg, dict_)
 
         # downloading base encoder / not required unless on re-trains (but when a training set is created this happens anyway)
         # model_path, num_shuffles=auxfun_models.Check4weights(pose_cfg['net_type'], parent_path, num_shuffles= 1)

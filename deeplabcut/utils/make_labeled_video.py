@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
 
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Hao Wu, hwu01@g.harvard.edu contributed the original OpenCV class. Thanks!
@@ -21,10 +21,12 @@ import os.path
 from pathlib import Path
 from functools import partial
 from multiprocessing import Pool
+from typing import Iterable
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.animation import FFMpegWriter
 from matplotlib.collections import LineCollection
 from skimage.draw import disk, line_aa
@@ -88,6 +90,9 @@ def CreateVideo(
         ny, nx = clip.height(), clip.width()
 
     fps = clip.fps()
+    if isinstance(fps, float):
+        if fps * 1000 > 65535:
+            fps = round(fps)
     nframes = clip.nframes
     duration = nframes / fps
 
@@ -340,7 +345,7 @@ def CreateVideoSlow(
 def create_labeled_video(
     config,
     videos,
-    videotype="avi",
+    videotype="",
     shuffle=1,
     trainingsetindex=0,
     filtered=False,
@@ -360,101 +365,166 @@ def create_labeled_video(
     modelprefix="",
     track_method="",
 ):
-    """
-    Labels the bodyparts in a video. Make sure the video is already analyzed by the function 'analyze_video'
+    """Labels the bodyparts in a video.
+
+    Make sure the video is already analyzed by the function
+    ``deeplabcut.analyze_videos``.
 
     Parameters
     ----------
     config : string
-        Full path of the config.yaml file as a string.
+        Full path of the config.yaml file.
 
-    videos : list
-        A list of strings containing the full paths to videos for analysis or a path to the directory, where all the videos with same extension are stored.
+    videos : list[str]
+        A list of strings containing the full paths to videos for analysis or a path
+        to the directory, where all the videos with same extension are stored.
 
-    videotype: string, optional
-        Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed. The default is ``.avi``
+    videotype: str, optional, default=""
+        Checks for the extension of the video in case the input to the video is a
+        directory. Only videos with this extension are analyzed.
+        If left unspecified, videos with common extensions
+        ('avi', 'mp4', 'mov', 'mpeg', 'mkv') are kept.
 
-    shuffle : int, optional
-        Number of shuffles of training dataset. Default is set to 1.
+    shuffle : int, optional, default=1
+        Number of shuffles of training dataset.
 
-    trainingsetindex: int, optional
-        Integer specifying which TrainingsetFraction to use. By default the first (note that TrainingFraction is a list in config.yaml).
+    trainingsetindex: int, optional, default=0
+        Integer specifying which TrainingsetFraction to use.
+        Note that TrainingFraction is a list in config.yaml.
 
-    filtered: bool, default false
-        Boolean variable indicating if filtered output should be plotted rather than frame-by-frame predictions. Filtered version can be calculated with deeplabcut.filterpredictions
+    filtered: bool, optional, default=False
+        Boolean variable indicating if filtered output should be plotted rather than
+        frame-by-frame predictions. Filtered version can be calculated with
+        ``deeplabcut.filterpredictions``.
 
-    fastmode: bool
-        If true uses openCV (much faster but less customization of video) vs matplotlib (if false). You can also
-        "save_frames" individually or not in the matplotlib mode (if you set the "save_frames" variable accordingly).
-        However, using matplotlib to create the frames it therefore allows much more flexible (one can set transparency of markers, crop, and easily customize).
+    fastmode: bool, optional, default=True
+        If ``True``, uses openCV (much faster but less customization of video) instead
+        of matplotlib if ``False``. You can also "save_frames" individually or not in
+        the matplotlib mode (if you set the "save_frames" variable accordingly).
+        However, using matplotlib to create the frames it therefore allows much more
+        flexible (one can set transparency of markers, crop, and easily customize).
 
-    save_frames: bool
-        If true creates each frame individual and then combines into a video. This variant is relatively slow as
-        it stores all individual frames.
+    save_frames: bool, optional, default=False
+        If ``True``, creates each frame individual and then combines into a video.
+        Setting this to ``True`` is relatively slow as it stores all individual frames.
 
-    keypoints_only: bool, optional
-        By default, both video frames and keypoints are visible. If true, only the keypoints are shown. These clips are an hommage to Johansson movies,
-        see https://www.youtube.com/watch?v=1F5ICP9SYLU and of course his seminal paper: "Visual perception of biological motion and a model for its analysis"
+    keypoints_only: bool, optional, default=False
+        By default, both video frames and keypoints are visible. If ``True``, only the
+        keypoints are shown. These clips are an hommage to Johansson movies,
+        see https://www.youtube.com/watch?v=1F5ICP9SYLU and of course his seminal
+        paper: "Visual perception of biological motion and a model for its analysis"
         by Gunnar Johansson in Perception & Psychophysics 1973.
 
-    Frames2plot: List of indices
-        If not None & save_frames=True then the frames corresponding to the index will be plotted. For example, Frames2plot=[0,11] will plot the first and the 12th frame.
+    Frames2plot: List[int] or None, optional, default=None
+        If not ``None`` and ``save_frames=True`` then the frames corresponding to the
+        index will be plotted. For example, ``Frames2plot=[0,11]`` will plot the first
+        and the 12th frame.
 
-    displayedbodyparts: list of strings, optional
-        This selects the body parts that are plotted in the video. Either ``all``, then all body parts
-        from config.yaml are used orr a list of strings that are a subset of the full list.
-        E.g. ['hand','Joystick'] for the demo Reaching-Mackenzie-2018-08-30/config.yaml to select only these two body parts.
+    displayedbodyparts: list[str] or str, optional, default="all"
+        This selects the body parts that are plotted in the video. If ``all``, then all
+        body parts from config.yaml are used. If a list of strings that are a subset of
+        the full list. E.g. ['hand','Joystick'] for the demo
+        Reaching-Mackenzie-2018-08-30/config.yaml to select only these body parts.
 
-    displayedindividuals: list of strings, optional
-        Individuals plotted in the video. By default, all individuals present in the config will be showed.
+    displayedindividuals: list[str] or str, optional, default="all"
+        Individuals plotted in the video.
+        By default, all individuals present in the config will be showed.
 
-    codec: codec for labeled video. Options see http://www.fourcc.org/codecs.php [depends on your ffmpeg installation.]
+    codec: str, optional, default="mp4v"
+        Codec for labeled video. For available options, see
+        http://www.fourcc.org/codecs.php. Note that this depends on your ffmpeg
+        installation.
 
-    outputframerate: positive number, output frame rate for labeled video (only available for the mode with saving frames.) By default: None, which results in the original video rate.
+    outputframerate: int or None, optional, default=None
+        Positive number, output frame rate for labeled video (only available for the
+        mode with saving frames.) If ``None``, which results in the original video
+        rate.
 
-    destfolder: string, optional
-        Specifies the destination folder that was used for storing analysis data (default is the path of the video).
+    destfolder: string or None, optional, default=None
+        Specifies the destination folder that was used for storing analysis data. If
+        ``None``, the path of the video file is used.
 
-    draw_skeleton: bool
-        If ``True`` adds a line connecting the body parts making a skeleton on on each frame. The body parts to be connected and the color of these connecting lines are specified in the config file. By default: ``False``
+    draw_skeleton: bool, optional, default=False
+        If ``True`` adds a line connecting the body parts making a skeleton on each
+        frame. The body parts to be connected and the color of these connecting lines
+        are specified in the config file.
 
-    trailpoints: int
-        Number of revious frames whose body parts are plotted in a frame (for displaying history). Default is set to 0.
+    trailpoints: int, optional, default=0
+        Number of previous frames whose body parts are plotted in a frame
+        (for displaying history).
 
-    displaycropped: bool, optional
-        Specifies whether only cropped frame is displayed (with labels analyzed therein), or the original frame with the labels analyzed in the cropped subset.
+    displaycropped: bool, optional, default=False
+        Specifies whether only cropped frame is displayed (with labels analyzed
+        therein), or the original frame with the labels analyzed in the cropped subset.
 
-    color_by : string, optional (default='bodypart')
+    color_by : string, optional, default='bodypart'
         Coloring rule. By default, each bodypart is colored differently.
-        If set to 'individual', points belonging to a single individual are colored the same.
+        If set to 'individual', points belonging to a single individual are colored the
+        same.
+
+    modelprefix: str, optional, default=""
+        Directory containing the deeplabcut models to use when evaluating the network.
+        By default, the models are assumed to exist in the project folder.
+
+    track_method: string, optional, default=""
+        Specifies the tracker used to generate the data.
+        Empty by default (corresponding to a single animal project).
+        For multiple animals, must be either 'box', 'skeleton', or 'ellipse' and will
+        be taken from the config.yaml file if none is given.
+
+    Returns
+    -------
+    None
 
     Examples
     --------
-    If you want to create the labeled video for only 1 video
-    >>> deeplabcut.create_labeled_video('/analysis/project/reaching-task/config.yaml',['/analysis/project/videos/reachingvideo1.avi'])
-    --------
 
-    If you want to create the labeled video for only 1 video and store the individual frames
-    >>> deeplabcut.create_labeled_video('/analysis/project/reaching-task/config.yaml',['/analysis/project/videos/reachingvideo1.avi'],fastmode=True, save_frames=True)
-    --------
+    Create the labeled video for a single video
 
-    If you want to create the labeled video for multiple videos
-    >>> deeplabcut.create_labeled_video('/analysis/project/reaching-task/config.yaml',['/analysis/project/videos/reachingvideo1.avi','/analysis/project/videos/reachingvideo2.avi'])
-    --------
+    >>> deeplabcut.create_labeled_video(
+            '/analysis/project/reaching-task/config.yaml',
+            ['/analysis/project/videos/reachingvideo1.avi'],
+        )
 
-    If you want to create the labeled video for all the videos (as .avi extension) in a directory.
-    >>> deeplabcut.create_labeled_video('/analysis/project/reaching-task/config.yaml',['/analysis/project/videos/'])
+    Create the labeled video for a single video and store the individual frames
 
-    --------
-    If you want to create the labeled video for all the videos (as .mp4 extension) in a directory.
-    >>> deeplabcut.create_labeled_video('/analysis/project/reaching-task/config.yaml',['/analysis/project/videos/'],videotype='mp4')
+    >>> deeplabcut.create_labeled_video(
+            '/analysis/project/reaching-task/config.yaml',
+            ['/analysis/project/videos/reachingvideo1.avi'],
+            fastmode=True,
+            save_frames=True,
+        )
 
-    --------
+    Create the labeled video for multiple videos
 
+    >>> deeplabcut.create_labeled_video(
+            '/analysis/project/reaching-task/config.yaml',
+            [
+                '/analysis/project/videos/reachingvideo1.avi',
+                '/analysis/project/videos/reachingvideo2.avi',
+            ],
+        )
+
+    Create the labeled video for all the videos with an .avi extension in a directory.
+
+    >>> deeplabcut.create_labeled_video(
+            '/analysis/project/reaching-task/config.yaml',
+            ['/analysis/project/videos/'],
+        )
+
+    Create the labeled video for all the videos with an .mp4 extension in a directory.
+
+    >>> deeplabcut.create_labeled_video(
+            '/analysis/project/reaching-task/config.yaml',
+            ['/analysis/project/videos/'],
+            videotype='mp4',
+        )
     """
     cfg = auxiliaryfunctions.read_config(config)
+    track_method = auxfun_multianimal.get_track_method(cfg, track_method=track_method)
+
     trainFraction = cfg["TrainingFraction"][trainingsetindex]
-    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.GetScorerName(
+    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.get_scorer_name(
         cfg, shuffle, trainFraction, modelprefix=modelprefix
     )  # automatically loads corresponding model (even training iteration based on snapshot index)
 
@@ -462,7 +532,7 @@ def create_labeled_video(
         fastmode = False  # otherwise one cannot save frames
         keypoints_only = False
 
-    bodyparts = auxiliaryfunctions.IntersectionofBodyPartsandOnesGivenbyUser(
+    bodyparts = auxiliaryfunctions.intersection_of_body_parts_and_ones_given_by_user(
         cfg, displayedbodyparts
     )
     individuals = auxfun_multianimal.IntersectionofIndividualsandOnesGivenbyUser(
@@ -476,10 +546,9 @@ def create_labeled_video(
         skeleton_color = None
 
     start_path = os.getcwd()
-    Videos = auxiliaryfunctions.Getlistofvideos(videos, videotype)
+    Videos = auxiliaryfunctions.get_list_of_videos(videos, videotype)
 
     if not Videos:
-        print("No video(s) were found. Please check your paths and/or 'video_type'.")
         return
 
     func = partial(
@@ -646,38 +715,96 @@ def proc_video(
                 clip.close()
             else:
                 if displaycropped:  # then the cropped video + the labels is depicted
-                    clip = vp(
-                        fname=video,
-                        sname=videooutname,
-                        codec=codec,
-                        sw=x2 - x1,
-                        sh=y2 - y1,
-                        fps=outputframerate,
-                    )
+                    bbox = x1, x2, y1, y2
                 else:  # then the full video + the (perhaps in cropped mode analyzed labels) are depicted
-                    clip = vp(fname=video, sname=videooutname, codec=codec, fps=outputframerate)
-                CreateVideo(
-                    clip,
-                    df,
-                    cfg["pcutoff"],
-                    cfg["dotsize"],
-                    cfg["colormap"],
-                    labeled_bpts,
-                    trailpoints,
-                    cropping,
-                    x1,
-                    x2,
-                    y1,
-                    y2,
-                    bodyparts2connect,
-                    skeleton_color,
-                    draw_skeleton,
-                    displaycropped,
-                    color_by,
+                    bbox = None
+                _create_labeled_video(
+                    video,
+                    filepath,
+                    keypoints2show=labeled_bpts,
+                    animals2show=individuals,
+                    bbox=bbox,
+                    codec=codec,
+                    output_path=videooutname,
+                    pcutoff=cfg["pcutoff"],
+                    dotsize=cfg["dotsize"],
+                    cmap=cfg["colormap"],
+                    color_by=color_by,
+                    skeleton_edges=bodyparts2connect,
+                    skeleton_color=skeleton_color,
+                    trailpoints=trailpoints,
+                    fps=outputframerate,
                 )
 
         except FileNotFoundError as e:
             print(e)
+
+
+def _create_labeled_video(
+    video,
+    h5file,
+    keypoints2show="all",
+    animals2show="all",
+    skeleton_edges=None,
+    pcutoff=0.6,
+    dotsize=8,
+    cmap="cool",
+    color_by="bodypart",
+    skeleton_color="k",
+    trailpoints=0,
+    bbox=None,
+    codec="mp4v",
+    fps=None,
+    output_path="",
+):
+    if color_by not in ("bodypart", "individual"):
+        raise ValueError("`color_by` should be either 'bodypart' or 'individual'.")
+
+    if not output_path:
+        s = "_id" if color_by == "individual" else "_bp"
+        output_path = h5file.replace(".h5", f"{s}_labeled.mp4")
+    try:
+        x1, x2, y1, y2 = bbox
+        display_cropped = True
+        sw = x2 - x1
+        sh = y2 - y1
+    except TypeError:
+        x1 = x2 = y1 = y2 = 0
+        display_cropped = False
+        sw = ""
+        sh = ""
+
+    clip = vp(fname=video, sname=output_path, codec=codec, sw=sw, sh=sh, fps=fps,)
+    df = pd.read_hdf(h5file)
+    try:
+        animals = df.columns.get_level_values("individuals").unique().to_list()
+        if animals2show != "all" and isinstance(animals, Iterable):
+            animals = [a for a in animals if a in animals2show]
+        df = df.loc(axis=1)[:, animals]
+    except KeyError:
+        pass
+    kpts = df.columns.get_level_values("bodyparts").unique().to_list()
+    if keypoints2show != "all" and isinstance(keypoints2show, Iterable):
+        kpts = [kpt for kpt in kpts if kpt in keypoints2show]
+    CreateVideo(
+        clip,
+        df,
+        pcutoff,
+        dotsize,
+        cmap,
+        kpts,
+        trailpoints,
+        False,
+        x1,
+        x2,
+        y1,
+        y2,
+        skeleton_edges,
+        skeleton_color,
+        bool(skeleton_edges),
+        display_cropped,
+        color_by,
+    )
 
 
 def create_video_with_keypoints_only(
@@ -763,7 +890,7 @@ def create_video_with_keypoints_only(
 def create_video_with_all_detections(
     config,
     videos,
-    videotype="avi",
+    videotype="",
     shuffle=1,
     trainingsetindex=0,
     displayedbodyparts="all",
@@ -783,7 +910,8 @@ def create_video_with_all_detections(
         where all the videos with same extension are stored.
 
     videotype: string, optional
-        Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed. The default is ``.avi``
+        Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed.
+        If left unspecified, videos with common extensions ('avi', 'mp4', 'mov', 'mpeg', 'mkv') are kept.
 
     shuffle : int, optional
         Number of shuffles of training dataset. Default is set to 1.
@@ -801,17 +929,16 @@ def create_video_with_all_detections(
 
     """
     from deeplabcut.pose_estimation_tensorflow.lib.inferenceutils import Assembler
-    import pickle, re
+    import re
 
     cfg = auxiliaryfunctions.read_config(config)
     trainFraction = cfg["TrainingFraction"][trainingsetindex]
-    DLCscorername, _ = auxiliaryfunctions.GetScorerName(
+    DLCscorername, _ = auxiliaryfunctions.get_scorer_name(
         cfg, shuffle, trainFraction, modelprefix=modelprefix
     )
 
-    videos = auxiliaryfunctions.Getlistofvideos(videos, videotype)
+    videos = auxiliaryfunctions.get_list_of_videos(videos, videotype)
     if not videos:
-        print("No video(s) were found. Please check your paths and/or 'video_type'.")
         return
 
     for video in videos:
@@ -831,8 +958,11 @@ def create_video_with_all_detections(
 
         if not (os.path.isfile(outputname)):
             print("Creating labeled video for ", str(Path(video).stem))
-            with open(full_pickle, "rb") as file:
-                data = pickle.load(file)
+            h5file = full_pickle.replace("_full.pickle", ".h5")
+            data, _ = auxfun_multianimal.LoadFullMultiAnimalData(h5file)
+            data = dict(
+                data
+            )  # Cast to dict (making a copy) so items can safely be popped
 
             header = data.pop("metadata")
             all_jointnames = header["all_joints_names"]
@@ -860,6 +990,8 @@ def create_video_with_all_detections(
 
             for n in trange(clip.nframes):
                 frame = clip.load_frame()
+                if frame is None:
+                    continue
                 try:
                     ind = frames.index(n)
                     dets = Assembler._flatten_detections(data[frame_names[ind]])

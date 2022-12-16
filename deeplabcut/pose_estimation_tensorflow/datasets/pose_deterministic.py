@@ -1,10 +1,10 @@
 """
 DeepLabCut2.2 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
 
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Adapted from DeeperCut by Eldar Insafutdinov
@@ -17,6 +17,7 @@ import numpy as np
 import os
 import scipy.io as sio
 from deeplabcut.utils.auxfun_videos import imread, imresize
+from deeplabcut.utils.conversioncode import robust_split_path
 from .factory import PoseDatasetFactory
 from .pose_base import BasePoseDataset
 from .utils import (
@@ -47,7 +48,7 @@ class DeterministicPoseDataset(BasePoseDataset):
 
     def load_dataset(self):
         cfg = self.cfg
-        file_name = os.path.join(self.cfg["project_path"], cfg['dataset'])
+        file_name = os.path.join(self.cfg["project_path"], cfg["dataset"])
         mlab = sio.loadmat(file_name)
         self.raw_data = mlab
         mlab = mlab["dataset"]
@@ -61,7 +62,12 @@ class DeterministicPoseDataset(BasePoseDataset):
 
             item = DataItem()
             item.image_id = i
-            item.im_path = sample[0][0]
+            im_path = sample[0][0]
+            if isinstance(im_path, str):
+                im_path = robust_split_path(im_path)
+            else:
+                im_path = [s.strip() for s in im_path]
+            item.im_path = os.path.join(*im_path)
             item.im_size = sample[1][0]
             if len(sample) >= 3:
                 joints = sample[2][0][0]
@@ -166,7 +172,7 @@ class DeterministicPoseDataset(BasePoseDataset):
         im_file = data_item.im_path
         logging.debug("image %s", im_file)
         logging.debug("mirror %r", mirror)
-        image = imread(os.path.join(self.cfg['project_path'], im_file), mode="RGB")
+        image = imread(os.path.join(self.cfg["project_path"], im_file), mode="skimage")
 
         if self.has_gt:
             joints = np.copy(data_item.joints)
@@ -236,8 +242,8 @@ class DeterministicPoseDataset(BasePoseDataset):
         for person_id in range(len(coords)):
             for k, j_id in enumerate(joint_id[person_id]):
                 joint_pt = coords[person_id][k, :]
-                j_x = np.asscalar(joint_pt[0])
-                j_y = np.asscalar(joint_pt[1])
+                j_x = np.asarray(joint_pt[0]).item()
+                j_y = np.asarray(joint_pt[1]).item()
 
                 # don't loop over entire heatmap, but just relevant locations
                 j_x_sm = round((j_x - self.half_stride) / self.stride)

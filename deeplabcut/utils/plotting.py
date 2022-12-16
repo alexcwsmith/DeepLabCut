@@ -1,15 +1,16 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
 import argparse
 import os
+import pickle
 
 ####################################################
 # Dependencies
@@ -20,6 +21,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from deeplabcut.pose_estimation_tensorflow.lib import crossvalutils
 from deeplabcut.utils import auxiliaryfunctions, auxfun_multianimal, visualization
 
 
@@ -160,7 +162,7 @@ def PlottingResults(
 def plot_trajectories(
     config,
     videos,
-    videotype=".avi",
+    videotype="",
     shuffle=1,
     trainingsetindex=0,
     filtered=False,
@@ -169,83 +171,102 @@ def plot_trajectories(
     showfigures=False,
     destfolder=None,
     modelprefix="",
-    track_method="",
     imagetype=".png",
     resolution=100,
     linewidth=1.0,
+    track_method="",
 ):
-    """
-    Plots the trajectories of various bodyparts across the video.
+    """Plots the trajectories of various bodyparts across the video.
 
     Parameters
     ----------
-     config : string
-    Full path of the config.yaml file as a string.
+    config: str
+        Full path of the config.yaml file.
 
-    videos : list
-        A list of strings containing the full paths to videos for analysis or a path to the directory, where all the videos with same extension are stored.
+    videos: list[str]
+        Full paths to videos for analysis or a path to the directory, where all the
+        videos with same extension are stored.
 
-    videotype: string, optional
-        Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed. The default is ``.avi``
+    videotype: str, optional, default=""
+        Checks for the extension of the video in case the input to the video is a
+        directory. Only videos with this extension are analyzed.
+        If left unspecified, videos with common extensions
+        ('avi', 'mp4', 'mov', 'mpeg', 'mkv') are kept.
 
-    shuffle: list, optional
-    List of integers specifying the shuffle indices of the training dataset. The default is [1]
+    shuffle: int, optional, default=1
+        Integer specifying the shuffle index of the training dataset.
 
-    trainingsetindex: int, optional
-    Integer specifying which TrainingsetFraction to use. By default the first (note that TrainingFraction is a list in config.yaml).
+    trainingsetindex: int, optional, default=0
+        Integer specifying which TrainingsetFraction to use.
+        Note that TrainingFraction is a list in config.yaml.
 
-    filtered: bool, default false
-    Boolean variable indicating if filtered output should be plotted rather than frame-by-frame predictions. Filtered version can be calculated with deeplabcut.filterpredictions
+    filtered: bool, optional, default=False
+        Boolean variable indicating if filtered output should be plotted rather than
+        frame-by-frame predictions. Filtered version can be calculated with
+        ``deeplabcut.filterpredictions``.
 
-    displayedbodyparts: list of strings, optional
+    displayedbodyparts: list[str] or str, optional, default="all"
         This select the body parts that are plotted in the video.
         Either ``all``, then all body parts from config.yaml are used,
         or a list of strings that are a subset of the full list.
-        E.g. ['hand','Joystick'] for the demo Reaching-Mackenzie-2018-08-30/config.yaml to select only these two body parts.
+        E.g. ['hand','Joystick'] for the demo Reaching-Mackenzie-2018-08-30/config.yaml
+        to select only these two body parts.
 
-    showfigures: bool, default false
-    If true then plots are also displayed.
+    showfigures: bool, optional, default=False
+        If ``True`` then plots are also displayed.
 
-    destfolder: string, optional
-        Specifies the destination folder that was used for storing analysis data (default is the path of the video).
+    destfolder: string or None, optional, default=None
+        Specifies the destination folder that was used for storing analysis data. If
+        ``None``, the path of the video is used.
 
-    imagetype: string, default ".png"
-        Specifies the output image format, tested '.tif', '.jpg', '.svg' and ".png".
+    modelprefix: str, optional, default=""
+        Directory containing the deeplabcut models to use when evaluating the network.
+        By default, the models are assumed to exist in the project folder.
 
-    resolution: int, default 100
-        Specifies the resolution (in dpi) of saved figures. Note higher resolution figures take longer to generate.
+    imagetype: string, optional, default=".png"
+        Specifies the output image format - '.tif', '.jpg', '.svg' and ".png".
 
-    linewidth: float, default 1.0
+    resolution: int, optional, default=100
+        Specifies the resolution (in dpi) of saved figures.
+        Note higher resolution figures take longer to generate.
+
+    linewidth: float, optional, default=1.0
         Specifies width of line for line and histogram plots.
 
-    imagetype: string, default ".png"
-        Specifies the output image format, tested '.tif', '.jpg', '.svg' and ".png". 
+    track_method: string, optional, default=""
+         Specifies the tracker used to generate the data.
+         Empty by default (corresponding to a single animal project).
+         For multiple animals, must be either 'box', 'skeleton', or 'ellipse' and will
+         be taken from the config.yaml file if none is given.
 
-    resolution: int, default 100
-        Specifies the resolution (in dpi) of saved figures. Note higher resolution figures take longer to generate.
+    Returns
+    -------
+    None
 
-    linewidth: float, default 1.0
-        Specifies width of line for line and histogram plots.
-
-    Example
-    --------
-    for labeling the frames
-    >>> deeplabcut.plot_trajectories('home/alex/analysis/project/reaching-task/config.yaml',['/home/alex/analysis/project/videos/reachingvideo1.avi'])
+    Examples
     --------
 
+    To label the frames
+
+    >>> deeplabcut.plot_trajectories(
+            'home/alex/analysis/project/reaching-task/config.yaml',
+            ['/home/alex/analysis/project/videos/reachingvideo1.avi'],
+        )
     """
     cfg = auxiliaryfunctions.read_config(config)
+    track_method = auxfun_multianimal.get_track_method(cfg, track_method=track_method)
+
     trainFraction = cfg["TrainingFraction"][trainingsetindex]
-    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.GetScorerName(
+    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.get_scorer_name(
         cfg, shuffle, trainFraction, modelprefix=modelprefix
     )  # automatically loads corresponding model (even training iteration based on snapshot index)
-    bodyparts = auxiliaryfunctions.IntersectionofBodyPartsandOnesGivenbyUser(
+    bodyparts = auxiliaryfunctions.intersection_of_body_parts_and_ones_given_by_user(
         cfg, displayedbodyparts
     )
     individuals = auxfun_multianimal.IntersectionofIndividualsandOnesGivenbyUser(
         cfg, displayedindividuals
     )
-    Videos = auxiliaryfunctions.Getlistofvideos(videos, videotype)
+    Videos = auxiliaryfunctions.get_list_of_videos(videos, videotype)
     if not len(Videos):
         print(
             "No videos found. Make sure you passed a list of videos and that *videotype* is right."
@@ -320,6 +341,100 @@ def plot_trajectories(
             f"Plots could not be created! "
             f"Videos were not evaluated with the current scorer {DLCscorer}."
         )
+
+
+def _plot_paf_performance(
+    within, between, nbins=51, kde=True, colors=None, ax=None,
+):
+    import seaborn as sns
+
+    bins = np.linspace(0, 1, nbins)
+    if colors is None:
+        colors = "#EFC9AF", "#1F8AC0"
+    if ax is None:
+        fig, ax = plt.subplots(tight_layout=True, figsize=(3, 3))
+    sns.histplot(within, kde=kde, ax=ax, stat="probability", color=colors[0], bins=bins)
+    sns.histplot(
+        between, kde=kde, ax=ax, stat="probability", color=colors[1], bins=bins
+    )
+    return ax
+
+
+def plot_edge_affinity_distributions(
+    eval_pickle_file, include_bodyparts="all", output_name="", figsize=(10, 7),
+):
+    """
+    Display the distribution of affinity costs of within- and between-animal edges.
+
+    Parameters
+    ----------
+    eval_pickle_file : string
+        Path to a *_full.pickle from the evaluation-results folder.
+
+    include_bodyparts : list of strings, optional
+        A list of body part names whose edges are to be shown.
+        By default, all body parts and their corresponding edges are analyzed.
+        We recommend only passing a subset of body parts for projects with large graphs.
+
+    output_name: string, optional
+        Path where the plot is saved. By default, it is stored as costdist.png.
+
+    figsize: tuple
+        Figure size in inches.
+
+    """
+
+    with open(eval_pickle_file, "rb") as file:
+        data = pickle.load(file)
+    meta_pickle_file = eval_pickle_file.replace("_full.", "_meta.")
+    with open(meta_pickle_file, "rb") as file:
+        metadata = pickle.load(file)
+    (w_train, _), (b_train, _) = crossvalutils._calc_within_between_pafs(
+        data, metadata, train_set_only=True,
+    )
+    data.pop("metadata", None)
+    nonempty = set(i for i, vals in w_train.items() if vals)
+    meta = metadata["data"]["DLC-model-config file"]
+    bpts = list(map(str.lower, meta["all_joints_names"]))
+    inds_multi = set(b for edge in meta["partaffinityfield_graph"] for b in edge)
+    if include_bodyparts == "all":
+        include_bodyparts = inds_multi
+    else:
+        include_bodyparts = set(bpts.index(bpt) for bpt in include_bodyparts)
+    edges_to_keep = set()
+    graph = meta["partaffinityfield_graph"]
+    for n, edge in enumerate(graph):
+        if not any(i in include_bodyparts for i in edge):
+            continue
+        edges_to_keep.add(n)
+    edge_inds = edges_to_keep.intersection(nonempty)
+    nrows = int(np.ceil(np.sqrt(len(edge_inds))))
+    ncols = int(np.ceil(len(edge_inds) / nrows))
+    fig, axes_ = plt.subplots(
+        nrows, ncols, figsize=figsize, tight_layout=True, squeeze=False,
+    )
+    axes = axes_.flatten()
+    for ax in axes:
+        ax.axis("off")
+    for n, ind in enumerate(edge_inds):
+        i1, i2 = graph[ind]
+        w_tr = w_train[ind]
+        b_tr = b_train[ind]
+        sep, _ = crossvalutils._calc_separability(b_tr, w_tr, metric="auc")
+        axes[n].text(
+            0.5,
+            0.8,
+            f"{bpts[i1]}–{bpts[i2]}\n{sep:.2f}",
+            size=8,
+            ha="center",
+            transform=axes[n].transAxes,
+        )
+        _plot_paf_performance(w_tr, b_tr, ax=axes[n], kde=False)
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
+    if not output_name:
+        output_name = "costdist.jpg"
+    fig.savefig(output_name, dpi=600)
 
 
 if __name__ == "__main__":

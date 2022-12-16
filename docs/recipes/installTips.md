@@ -1,3 +1,4 @@
+(installation-tips)=
 # Installation Tips
 
 ## How to use the latest updates directly from GitHub
@@ -312,37 +313,56 @@ Activate! `conda activate DEEPLABCUT` and then run: `conda install -c conda-forg
 Then run `python -m deeplabcut` which launches the DLC GUI.
 
 
-## DeepLabCut M1 chip installation environment instructions:
+## DeepLabCut MacOS M1 and M2 chip installation environment instructions:
 
-This only assumes you have anaconda installed!
+This only assumes you have anaconda installed.
 
-Use the `DEEPLABCUT_M1.yaml` conda file if you have an Macbok with an M1 chip, and follow these steps:
+Use the `DEEPLABCUT_M1.yaml` conda file if you have an Macbok with an M1 or M2 chip, and follow these steps:
 
 (1) git clone the deeplabcut cut repo:
 
-`git clone https://github.com/DeepLabCut/DeepLabCut.git`
+```
+git clone https://github.com/DeepLabCut/DeepLabCut.git
+```
 
-(2) in the program terminal, `cd DeepLabCut/conda-environments`
+(2) in the program terminal run: `cd DeepLabCut/conda-environments`
 
-(3) Click here to download the Rosetta wheel for TensorFlow.
-
-For instance, for 2.4.1:
-https://drive.google.com/file/d/17pSwfoNuyf3YR8vCaVggHeI-pMQ3xL7l/view?usp=sharing
-(for different versions see here: https://github.com/tensorflow/tensorflow/issues/46044)
+(3) Click [here](https://drive.google.com/file/d/17pSwfoNuyf3YR8vCaVggHeI-pMQ3xL7l/view?usp=sharing) to download the Rosetta wheel for TensorFlow. We assume this goes into your Downloads folder. This downloads TF 2.4.1; https://drive.google.com/file/d/17pSwfoNuyf3YR8vCaVggHeI-pMQ3xL7l/view?usp=sharing
+(for different versions see here: https://github.com/tensorflow/tensorflow/issues/46044).
 
 (4) Then, run:
 
-`conda env create -f DEEPLABCUT_M1.yaml`
+```
+conda env create -f DEEPLABCUT_M1.yaml
+```
 
-(5) Next, **activate the environment,** and in the terminal `cd` to  Downloads, and then run:
+(5) Please activate the environment and set osx-64; i.e., then, run:
 
-`pip install tensorflow-2.4.1-py3-none-any.whl --no-dependencies --force-reinstall`
+```
+conda activate DEEPLABCUT_M1
+conda env config vars set CONDA_SUBDIR=osx-64
+```
+Now, as the print satement says, please deactivate and re-activate to set the change:
 
-(6) Next, launch DLC with `pythonw -m deeplabcut`
+```
+conda deactivate
+conda activate DEEPLABCUT_M1
+conda env update -f DEEPLABCUT_M1.yaml
+```
+
+(5) Next, run:
+
+ ```
+ pip install ~/Downloads/tensorflow-2.4.1-py3-none-any.whl --no-dependencies --force-reinstall
+ ```
+ (again, assumes this file in your downloads folder)
+
+
+(6) Next, launch DLC with `pythonw -m deeplabcut` (or if DLC version 2.3+, please use `python -m deeplabcut`)
 
 GUI will open!
 
-Note: Based on issue #1380 thanks!
+Note: Based on issues  #1380 and #2011, thanks!
 
 ## How to confirm that your GPU is being used by DeepLabCut
 
@@ -352,16 +372,35 @@ During training and analysis steps, DeepLabCut does not use the GPU processor he
 
 (1) Open the task manager. If it looks like the image below, click on "More Details" 
 
-<img src="https://github.com/backyardbiomech/docImages/blob/main/DeepLabCut/taskManager.png" width="50%">
+![](https://images.squarespace-cdn.com/content/v1/57f6d51c9f74566f55ecf271/a0db3157-2228-4444-8084-36801659f272/installBrandon1.png?format=500w)
 
 (2) That will bring up the following, which still isn't helpful and has caused confusion for users. The %GPU does not reflect DeepLabCut usage.
 
-<img src="https://github.com/backyardbiomech/docImages/blob/main/DeepLabCut/TaskManagerDetails.png" width="50%">
+![](https://images.squarespace-cdn.com/content/v1/57f6d51c9f74566f55ecf271/117e3573-60bb-4599-b00b-c75276b24173/installBrandon2.png?format=500w)
 
 (3) Click on the **Performance** tab. On that page, click on the small arrow under GPU (it might start as **3D**, and change it to **CUDA**.  
 
 (4) During training, you should see the **Dedicated GPU memory usage** increase to near maximum, and you should see some activity in the **CUDA** graph. The graph below is the activity while running `testscript.py`.
 
-<img src="https://github.com/backyardbiomech/docImages/blob/main/DeepLabCut/taskManagerTraining.png" width="70%">
+![](https://images.squarespace-cdn.com/content/v1/57f6d51c9f74566f55ecf271/b1d03ca0-f8ba-4a31-a399-6e86856c81b0/installBrandon3.png?format=500w)
 
 (5) If you don't see activity there during training, then your GPU is likely not installed correctly for DeepLabCut. Return to the installation instructions, and be sure you installed CUDA 11+, and ran `conda install cudnn -c conda-forge` after installing DeepLabCut.
+
+## How to install DeepLabCut for Intel and  AMD GPUs on Windows
+If you are on Windows 10/11 and have a DirectX 12 compatible GPU from any vendor (AMD, Intel, or Nvidia), you utilise GPU acceleration for inference, with an installation that is consistent between devices. This method uses [Tensorflow-directml](https://github.com/microsoft/tensorflow-directml) which uses DirectML instead of Cuda for ML training and inference.
+
+To check the DirectX version of your installed GPU, type in dxdiag into windows search and select the run command. In system information, the bottom item of the list shows your DirectX version. In addition to this ensure your standard GPU drivers are up-to-date. Updating drivers by any official means (Nvidia Geforce experience, AMD radeon software, direct from the vendor website) is fine.
+
+The following instructions are using conda and pip for environment management, executing within the Anaconda prompt program that was installed along with Anaconda python. The # lines are not to be typed, they are for guidance.
+
+```shell
+conda create --name dlc_dml python=3.7
+conda activate dlc_dml
+#specific versions noted that are validated as of DLC 2.2.0.6, but other versions may work:
+pip install 'deeplabcut[gui]'==2.2.0.6
+pip install tensorflow-directml==1.15.5
+pip install pip install imageio==2.9.0
+conda install ffmpeg==4.2.2
+```
+
+Attention: Please note the order of execution of these commands are important, as pip's dependency manager may change package versions to incorrect ones if done in the wrong version.

@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
 
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
@@ -21,7 +21,13 @@ import statsmodels.api as sm
 from skimage.util import img_as_ubyte
 
 from deeplabcut.pose_estimation_tensorflow.lib import inferenceutils
-from deeplabcut.utils import auxiliaryfunctions, visualization, frameselectiontools
+from deeplabcut.utils import (
+    auxiliaryfunctions,
+    auxfun_multianimal,
+    conversioncode,
+    visualization,
+    frameselectiontools,
+)
 from deeplabcut.utils.auxfun_videos import VideoWriter
 
 
@@ -33,6 +39,7 @@ def find_outliers_in_raw_data(
     percentiles=(5, 95),
     with_annotations=True,
     extraction_algo="kmeans",
+    copy_videos=False,
 ):
     """
     Extract outlier frames from either raw detections or assemblies of multiple animals.
@@ -62,6 +69,10 @@ def find_outliers_in_raw_data(
 
     extraction_algo : string, optional (default="kmeans")
         Outlier detection algorithm. Must be either ``uniform`` or ``kmeans``.
+
+    copy_videos : bool, optional (default=False)
+        If True, newly-added videos (from which outlier frames are extracted) are
+        copied to the project folder. By default, symbolic links are created instead.
 
     """
     if extraction_algo not in ("kmeans", "uniform"):
@@ -102,6 +113,7 @@ def find_outliers_in_raw_data(
         config=config,
         savelabeled=False,
         with_annotations=with_annotations,
+        copy_videos=copy_videos,
     )
 
 
@@ -151,10 +163,11 @@ def find_outliers_in_raw_detections(
         temp_coords = dict_["coordinates"][0]
         temp = dict_["confidence"]
         if kept_keypoints is not None:
-            temp = [vals for i, vals in enumerate(temp) if i in kept_keypoints]
-        coords = np.concatenate(temp_coords).squeeze()
-        conf = np.concatenate(temp).squeeze()
-        data[frame_ind] = np.c_[coords, conf]
+            temp_coords = [temp_coords[i] for i in kept_keypoints]
+            temp = [temp[i] for i in kept_keypoints]
+        coords = np.concatenate(temp_coords)
+        conf = np.concatenate(temp)
+        data[frame_ind] = np.c_[coords, conf].squeeze()
         if np.any(conf < threshold):
             candidates.append(frame_ind)
     return candidates, data
@@ -163,7 +176,7 @@ def find_outliers_in_raw_detections(
 def extract_outlier_frames(
     config,
     videos,
-    videotype=".avi",
+    videotype="",
     shuffle=1,
     trainingsetindex=0,
     outlieralgorithm="jump",
@@ -179,119 +192,182 @@ def extract_outlier_frames(
     cluster_color=False,
     opencv=True,
     savelabeled=False,
+    copy_videos=False,
     destfolder=None,
     modelprefix="",
     track_method="",
 ):
-    """
-    Extracts the outlier frames in case, the predictions are not correct for a certain video from the cropped video running from
-    start to stop as defined in config.yaml.
+    """Extracts the outlier frames.
 
-    Another crucial parameter in config.yaml is how many frames to extract 'numframes2extract'.
+    Extracts the outlier frames if the predictions are not correct for a certain video
+    from the cropped video running from start to stop as defined in config.yaml.
 
-    Parameter
+    Another crucial parameter in config.yaml is how many frames to extract
+    ``numframes2extract``.
+
+    Parameters
     ----------
-    config : string
-        Full path of the config.yaml file as a string.
+    config: str
+        Full path of the config.yaml file.
 
-    videos : list
-        A list of strings containing the full paths to videos for analysis or a path to the directory, where all the videos with same extension are stored.
+    videos : list[str]
+        The full paths to videos for analysis or a path to the directory, where all the
+        videos with same extension are stored.
 
-    videotype: string, optional
-        Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed. The default is ``.avi``
+    videotype: str, optional, default=""
+        Checks for the extension of the video in case the input to the video is a
+        directory. Only videos with this extension are analyzed.
+        If left unspecified, videos with common extensions
+        ('avi', 'mp4', 'mov', 'mpeg', 'mkv') are kept.
 
-    shuffle : int, optional
-        The shufle index of training dataset. The extracted frames will be stored in the labeled-dataset for
-        the corresponding shuffle of training dataset. Default is set to 1
+    shuffle : int, optional, default=1
+        The shuffle index of training dataset. The extracted frames will be stored in
+        the labeled-dataset for the corresponding shuffle of training dataset.
 
-    trainingsetindex: int, optional
-        Integer specifying which TrainingsetFraction to use. By default the first (note that TrainingFraction is a list in config.yaml).
+    trainingsetindex: int, optional, default=0
+        Integer specifying which TrainingsetFraction to use.
+        Note that TrainingFraction is a list in config.yaml.
 
-    outlieralgorithm: 'fitting', 'jump', 'uncertain', or 'manual'
-        String specifying the algorithm used to detect the outliers. Currently, deeplabcut supports three methods + a manual GUI option. 'Fitting'
-        fits a Auto Regressive Integrated Moving Average model to the data and computes the distance to the estimated data. Larger distances than
-        epsilon are then potentially identified as outliers. The methods 'jump' identifies larger jumps than 'epsilon' in any body part; and 'uncertain'
-        looks for frames with confidence below p_bound. The default is set to ``jump``.
+    outlieralgorithm: str, optional, default="jump".
+        String specifying the algorithm used to detect the outliers.
 
-    comparisonbodyparts: list of strings, optional
-        This selects the body parts for which the comparisons with the outliers are carried out. Either ``all``, then all body parts
-        from config.yaml are used orr a list of strings that are a subset of the full list.
-        E.g. ['hand','Joystick'] for the demo Reaching-Mackenzie-2018-08-30/config.yaml to select only these two body parts.
+        * ``'Fitting'`` fits a Auto Regressive Integrated Moving Average model to the
+          data and computes the distance to the estimated data. Larger distances than
+          epsilon are then potentially identified as outliers
+        * ``'jump'`` identifies larger jumps than 'epsilon' in any body part
+        * ``'uncertain'`` looks for frames with confidence below p_bound
+        * ``'manual'`` launches a GUI from which the user can choose the frames
 
-    p_bound: float between 0 and 1, optional
-        For outlieralgorithm 'uncertain' this parameter defines the likelihood below, below which a body part will be flagged as a putative outlier.
+    comparisonbodyparts: list[str] or str, optional, default="all"
+        This selects the body parts for which the comparisons with the outliers are
+        carried out. If ``"all"``, then all body parts from config.yaml are used. If a
+        list of strings that are a subset of the full list E.g. ['hand','Joystick'] for
+        the demo Reaching-Mackenzie-2018-08-30/config.yaml to select only these body
+        parts.
 
-    epsilon; float,optional
-        Meaning depends on outlieralgoritm. The default is set to 20 pixels.
-        For outlieralgorithm 'fitting': Float bound according to which frames are picked when the (average) body part estimate deviates from model fit
-        For outlieralgorithm 'jump': Float bound specifying the distance by which body points jump from one frame to next (Euclidean distance)
+    p_bound: float between 0 and 1, optional, default=0.01
+        For outlieralgorithm ``'uncertain'`` this parameter defines the likelihood
+        below which a body part will be flagged as a putative outlier.
 
-    ARdegree: int, optional
-        For outlieralgorithm 'fitting': Autoregressive degree of ARIMA model degree. (Note we use SARIMAX without exogeneous and seasonal part)
-        see https://www.statsmodels.org/dev/generated/statsmodels.tsa.statespace.sarimax.SARIMAX.html
+    epsilon: float, optional, default=20
+        If ``'outlieralgorithm'`` is ``'fitting'``, this is the float bound according
+        to which frames are picked when the (average) body part estimate deviates from
+        model fit.
 
-    MAdegree: int
-        For outlieralgorithm 'fitting': MovingAvarage degree of ARIMA model degree. (Note we use SARIMAX without exogeneous and seasonal part)
+        If ``'outlieralgorithm'`` is ``'jump'``, this is the float bound specifying the
+        distance by which body points jump from one frame to next (Euclidean distance).
+
+    ARdegree: int, optional, default=3
+        For outlieralgorithm ``'fitting'``: Autoregressive degree of ARIMA model degree.
+        (Note we use SARIMAX without exogeneous and seasonal part)
         See https://www.statsmodels.org/dev/generated/statsmodels.tsa.statespace.sarimax.SARIMAX.html
 
-    alpha: float
-        Significance level for detecting outliers based on confidence interval of fitted ARIMA model. Only the distance is used however.
+    MAdegree: int, optional, default=1
+        For outlieralgorithm ``'fitting'``: MovingAvarage degree of ARIMA model degree.
+        (Note we use SARIMAX without exogeneous and seasonal part)
+        See https://www.statsmodels.org/dev/generated/statsmodels.tsa.statespace.sarimax.SARIMAX.html
 
-    extractionalgorithm : string, optional
-        String specifying the algorithm to use for selecting the frames from the identified putatative outlier frames. Currently, deeplabcut
-        supports either ``kmeans`` or ``uniform`` based selection (same logic as for extract_frames).
-        The default is set to``uniform``, if provided it must be either ``uniform`` or ``kmeans``.
+    alpha: float, optional, default=0.01
+        Significance level for detecting outliers based on confidence interval of
+        fitted ARIMA model. Only the distance is used however.
 
-    automatic : bool, optional
-        Set it to True, if you want to extract outliers without being asked for user feedback.
+    extractionalgorithm : str, optional, default="kmeans"
+        String specifying the algorithm to use for selecting the frames from the
+        identified putatative outlier frames. Currently, deeplabcut supports either
+        ``kmeans`` or ``uniform`` based selection (same logic as for extract_frames).
 
-    cluster_resizewidth: number, default: 30
-        For k-means one can change the width to which the images are downsampled (aspect ratio is fixed).
+    automatic : bool, optional, default=False
+        If ``True``, extract outliers without being asked for user feedback.
 
-    cluster_color: bool, default: False
-        If false then each downsampled image is treated as a grayscale vector (discarding color information). If true, then the color channels are considered. This increases
-        the computational complexity.
+    cluster_resizewidth: number, default=30
+        If ``"extractionalgorithm"`` is ``"kmeans"``, one can change the width to which
+        the images are downsampled (aspect ratio is fixed).
 
-    opencv: bool, default: True
-        Uses openCV for loading & extractiong (otherwise moviepy (legacy))
+    cluster_color: bool, optional, default=False
+        If ``False``, each downsampled image is treated as a grayscale vector
+        (discarding color information). If ``True``, then the color channels are
+        considered. This increases the computational complexity.
 
-    savelabeled: bool, default: False
-        If true also saves frame with predicted labels in each folder.
+    opencv: bool, optional, default=True
+        Uses openCV for loading & extractiong (otherwise moviepy (legacy)).
 
-    destfolder: string, optional
-        Specifies the destination folder that was used for storing analysis data (default is the path of the video).
+    savelabeled: bool, optional, default=False
+        If ``True``, frame are saved with predicted labels in each folder.
+
+    copy_videos: bool, optional, default=False
+        If True, newly-added videos (from which outlier frames are extracted) are
+        copied to the project folder. By default, symbolic links are created instead.
+
+    destfolder: str or None, optional, default=None
+        Specifies the destination folder that was used for storing analysis data. If
+        ``None``, the path of the video is used.
+
+    modelprefix: str, optional, default=""
+        Directory containing the deeplabcut models to use when evaluating the network.
+        By default, the models are assumed to exist in the project folder.
+
+    track_method: str, optional, default=""
+         Specifies the tracker used to generate the data.
+         Empty by default (corresponding to a single animal project).
+         For multiple animals, must be either 'box', 'skeleton', or 'ellipse' and will
+         be taken from the config.yaml file if none is given.
+
+    Returns
+    -------
+    None
 
     Examples
+    --------
 
-    Windows example for extracting the frames with default settings
-    >>> deeplabcut.extract_outlier_frames('C:\\myproject\\reaching-task\\config.yaml',['C:\\yourusername\\rig-95\\Videos\\reachingvideo1.avi'])
-    --------
-    for extracting the frames with default settings
-    >>> deeplabcut.extract_outlier_frames('/analysis/project/reaching-task/config.yaml',['/analysis/project/video/reachinvideo1.avi'])
-    --------
-    for extracting the frames with kmeans
-    >>> deeplabcut.extract_outlier_frames('/analysis/project/reaching-task/config.yaml',['/analysis/project/video/reachinvideo1.avi'],extractionalgorithm='kmeans')
-    --------
-    for extracting the frames with kmeans and epsilon = 5 pixels.
-    >>> deeplabcut.extract_outlier_frames('/analysis/project/reaching-task/config.yaml',['/analysis/project/video/reachinvideo1.avi'],epsilon = 5,extractionalgorithm='kmeans')
-    --------
+    Extract the frames with default settings on Windows.
+
+    >>> deeplabcut.extract_outlier_frames(
+            'C:\\myproject\\reaching-task\\config.yaml',
+            ['C:\\yourusername\\rig-95\\Videos\\reachingvideo1.avi'],
+        )
+
+    Extract the frames with default settings on Linux/MacOS.
+
+    >>> deeplabcut.extract_outlier_frames(
+            '/analysis/project/reaching-task/config.yaml',
+            ['/analysis/project/video/reachinvideo1.avi'],
+        )
+
+    Extract the frames using the "kmeans" algorithm.
+
+    >>> deeplabcut.extract_outlier_frames(
+            '/analysis/project/reaching-task/config.yaml',
+            ['/analysis/project/video/reachinvideo1.avi'],
+            extractionalgorithm='kmeans',
+        )
+
+    Extract the frames using the "kmeans" algorithm and ``"epsilon=5"`` pixels.
+
+    >>> deeplabcut.extract_outlier_frames(
+            '/analysis/project/reaching-task/config.yaml',
+            ['/analysis/project/video/reachinvideo1.avi'],
+            epsilon=5,
+            extractionalgorithm='kmeans',
+        )
     """
 
     cfg = auxiliaryfunctions.read_config(config)
-    bodyparts = auxiliaryfunctions.IntersectionofBodyPartsandOnesGivenbyUser(
+    bodyparts = auxiliaryfunctions.intersection_of_body_parts_and_ones_given_by_user(
         cfg, comparisonbodyparts
     )
     if not len(bodyparts):
         raise ValueError("No valid bodyparts were selected.")
 
-    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.GetScorerName(
+    track_method = auxfun_multianimal.get_track_method(cfg, track_method=track_method)
+
+    DLCscorer, DLCscorerlegacy = auxiliaryfunctions.get_scorer_name(
         cfg,
         shuffle,
         trainFraction=cfg["TrainingFraction"][trainingsetindex],
         modelprefix=modelprefix,
     )
 
-    Videos = auxiliaryfunctions.Getlistofvideos(videos, videotype)
+    Videos = auxiliaryfunctions.get_list_of_videos(videos, videotype)
     if len(Videos) == 0:
         print("No suitable videos found in", videos)
 
@@ -340,18 +416,10 @@ def extract_outlier_frames(
                     ind = np.argsort(d)[::-1][: cfg["numframes2pick"] * 2]
                 Indices.extend(ind)
             elif outlieralgorithm == "manual":
-                wd = Path(config).resolve().parents[0]
-                os.chdir(str(wd))
-                from deeplabcut.gui import outlier_frame_extraction_toolbox
+                from deeplabcut.gui.widgets import launch_napari
 
-                outlier_frame_extraction_toolbox.show(
-                    config,
-                    video,
-                    shuffle,
-                    df,
-                    savelabeled,
-                    cfg.get("multianimalproject", False),
-                )
+                _ = launch_napari()
+                return
 
             # Run always except when the outlieralgorithm == manual.
             if not outlieralgorithm == "manual":
@@ -403,6 +471,7 @@ def extract_outlier_frames(
                         cluster_resizewidth,
                         cluster_color,
                         savelabeled,
+                        copy_videos=copy_videos,
                     )
                 else:
                     print(
@@ -437,7 +506,7 @@ def FitSARIMAXModel(x, p, pcutoff, alpha, ARdegree, MAdegree, nforecast=0, disp=
     Y[p < pcutoff] = np.nan  # Set uncertain estimates to nan (modeled as missing data)
     if np.sum(np.isfinite(Y)) > 10:
 
-        # SARIMAX implemetnation has better prediction models than simple ARIMAX (however we do not use the seasonal etc. parameters!)
+        # SARIMAX implementation has better prediction models than simple ARIMAX (however we do not use the seasonal etc. parameters!)
         mod = sm.tsa.statespace.SARIMAX(
             Y.flatten(),
             order=(ARdegree, 0, MAdegree),
@@ -538,13 +607,14 @@ def ExtractFramesbasedonPreselection(
     cluster_color=False,
     savelabeled=True,
     with_annotations=True,
+    copy_videos=False,
 ):
     from deeplabcut.create_project import add
 
     start = cfg["start"]
     stop = cfg["stop"]
     numframes2extract = cfg["numframes2pick"]
-    bodyparts = auxiliaryfunctions.IntersectionofBodyPartsandOnesGivenbyUser(cfg, "all")
+    bodyparts = auxiliaryfunctions.intersection_of_body_parts_and_ones_given_by_user(cfg, "all")
 
     videofolder = str(Path(video).parents[0])
     vname = str(Path(video).stem)
@@ -568,7 +638,9 @@ def ExtractFramesbasedonPreselection(
         duration = clip.duration
 
     if cfg["cropping"]:  # one might want to adjust
-        coords = (cfg["x1"], cfg["x2"], cfg["y1"], cfg["y2"])
+        coords = cfg["video_sets"].get(video, {}).get("crop")
+        if coords is not None:
+            coords = list(map(int, coords.split(", ")))
     else:
         coords = None
 
@@ -585,20 +657,22 @@ def ExtractFramesbasedonPreselection(
             )
     elif extractionalgorithm == "kmeans":
         if opencv:
+            if coords is not None:
+                vid.set_bbox(*coords)
             frames2pick = frameselectiontools.KmeansbasedFrameselectioncv2(
                 vid,
                 numframes2extract,
                 start,
                 stop,
-                cfg["cropping"],
-                coords,
                 Index,
                 resizewidth=cluster_resizewidth,
                 color=cluster_color,
             )
         else:
-            if cfg["cropping"]:
-                clip = clip.crop(y1=cfg["y1"], y2=cfg["x2"], x1=cfg["x1"], x2=cfg["x2"])
+            if coords is not None:
+                clip = clip.crop(
+                    y1=coords[2], y2=coords[3], x1=coords[0], x2=coords[1],
+                )
             frames2pick = frameselectiontools.KmeansbasedFrameselection(
                 clip,
                 numframes2extract,
@@ -623,8 +697,6 @@ def ExtractFramesbasedonPreselection(
         if opencv:
             PlottingSingleFramecv2(
                 vid,
-                cfg["cropping"],
-                coords,
                 data,
                 bodyparts,
                 tmpfolder,
@@ -662,12 +734,12 @@ def ExtractFramesbasedonPreselection(
     # Extract annotations based on DeepLabCut and store in the folder (with name derived from video name) under labeled-data
     if len(frames2pick) > 0:
         try:
-            if cfg["cropping"]:
+            if coords is not None:
                 add.add_new_videos(
-                    config, [video], coords=[coords]
+                    config, [video], coords=[coords], copy_videos=copy_videos,
                 )  # make sure you pass coords as a list
             else:
-                add.add_new_videos(config, [video], coords=None)
+                add.add_new_videos(config, [video], coords=None,  copy_videos=copy_videos)
         except:  # can we make a catch here? - in fact we should drop indices from DataCombined if they are in CollectedData.. [ideal behavior; currently this is pretty unlikely]
             print(
                 "AUTOMATIC ADDING OF VIDEO TO CONFIG FILE FAILED! You need to do this manually for including it in the config.yaml file!"
@@ -681,23 +753,15 @@ def ExtractFramesbasedonPreselection(
             )
             if isinstance(data, pd.DataFrame):
                 df = data.loc[frames2pick]
-                df.index = [
-                    os.path.join(
-                        "labeled-data",
-                        vname,
-                        "img" + str(index).zfill(strwidth) + ".png",
-                    )
+                df.index = pd.MultiIndex.from_tuples([
+                    ("labeled-data", vname, "img" + str(index).zfill(strwidth) + ".png")
                     for index in df.index
-                ]  # exchange index number by file names.
+                ])  # exchange index number by file names.
             elif isinstance(data, dict):
-                idx = [
-                    os.path.join(
-                        "labeled-data",
-                        vname,
-                        "img" + str(index).zfill(strwidth) + ".png",
-                    )
+                idx = pd.MultiIndex.from_tuples([
+                    ("labeled-data", vname, "img" + str(index).zfill(strwidth) + ".png")
                     for index in frames2pick
-                ]
+                ])
                 filename = os.path.join(
                     str(tmpfolder), f"CollectedData_{cfg['scorer']}.h5"
                 )
@@ -742,6 +806,7 @@ def ExtractFramesbasedonPreselection(
                 return
             if Path(machinefile).is_file():
                 Data = pd.read_hdf(machinefile, "df_with_missing")
+                conversioncode.guarantee_multiindex_rows(Data)
                 DataCombined = pd.concat([Data, df])
                 # drop duplicate labels:
                 DataCombined = DataCombined[
@@ -780,7 +845,7 @@ def PlottingSingleFrame(
     strwidth=4,
     savelabeled=True,
 ):
-    """ Label frame and save under imagename / this is already cropped (for clip) """
+    """Label frame and save under imagename / this is already cropped (for clip)"""
     from skimage import io
 
     imagename1 = os.path.join(tmpfolder, "img" + str(index).zfill(strwidth) + ".png")
@@ -836,8 +901,6 @@ def PlottingSingleFrame(
 
 def PlottingSingleFramecv2(
     cap,
-    crop,
-    coords,
     Dataframe,
     bodyparts2plot,
     tmpfolder,
@@ -849,7 +912,7 @@ def PlottingSingleFramecv2(
     strwidth=4,
     savelabeled=True,
 ):
-    """ Label frame and save under imagename / cap is not already cropped. """
+    """Label frame and save under imagename / cap is not already cropped."""
     from skimage import io
 
     imagename1 = os.path.join(tmpfolder, "img" + str(index).zfill(strwidth) + ".png")
@@ -862,16 +925,11 @@ def PlottingSingleFramecv2(
     ):
         plt.axis("off")
         cap.set_to_frame(index)
-        frame = cap.read_frame()
+        frame = cap.read_frame(crop=True)
         if frame is None:
             print("Frame could not be read.")
             return
         image = img_as_ubyte(frame)
-        if crop:
-            image = image[
-                int(coords[2]) : int(coords[3]), int(coords[0]) : int(coords[1]), :
-            ]
-
         io.imsave(imagename1, image)
 
         if savelabeled:
@@ -914,22 +972,27 @@ def PlottingSingleFramecv2(
 
 
 def merge_datasets(config, forceiterate=None):
-    """
-    Checks if the original training dataset can be merged with the newly refined training dataset. To do so it will check
-    if the frames in all extracted video sets were relabeled. If this is the case then the iterate variable is advanced by 1.
+    """Merge the original training dataset with the newly refined data.
 
-    Parameter
+    Checks if the original training dataset can be merged with the newly refined
+    training dataset. To do so it will check if the frames in all extracted video sets
+    were relabeled.
+
+    If this is the case then the ``"iteration"`` variable is advanced by 1.
+
+    Parameters
     ----------
-    config : string
-        Full path of the config.yaml file as a string.
+    config: str
+        Full path of the config.yaml file.
 
-    forceiterate: int, optional
-        If an integer is given the iteration variable is set to this value (this is only done if all datasets were labeled or refined)
+    forceiterate: int or None, optional, default=None
+        If an integer is given the iteration variable is set to this value
+        This is only done if all datasets were labeled or refined.
 
-    Example
+    Examples
     --------
+
     >>> deeplabcut.merge_datasets('/analysis/project/reaching-task/config.yaml')
-    --------
     """
 
     cfg = auxiliaryfunctions.read_config(config)

@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 def return_train_network_path(config, shuffle=1, trainingsetindex=0, modelprefix=""):
-    """ Returns the training and test pose config file names as well as the folder where the snapshot is
+    """Returns the training and test pose config file names as well as the folder where the snapshot is
     Parameters
     ----------
     config : string
@@ -29,7 +29,7 @@ def return_train_network_path(config, shuffle=1, trainingsetindex=0, modelprefix
     from deeplabcut.utils import auxiliaryfunctions
 
     cfg = auxiliaryfunctions.read_config(config)
-    modelfoldername = auxiliaryfunctions.GetModelFolder(
+    modelfoldername = auxiliaryfunctions.get_model_folder(
         cfg["TrainingFraction"][trainingsetindex], shuffle, cfg, modelprefix=modelprefix
     )
     trainposeconfigfile = Path(
@@ -55,7 +55,7 @@ def train_network(
     displayiters=None,
     saveiters=None,
     maxiters=None,
-    allow_growth=False,
+    allow_growth=True,
     gputouse=None,
     term_gpu=True,
     autotune=False,
@@ -64,59 +64,93 @@ def train_network(
 ):
     """Trains the network with the labels in the training dataset.
 
-    Parameter
+    Parameters
     ----------
     config : string
         Full path of the config.yaml file as a string.
 
-    shuffle: int, optional
-        Integer value specifying the shuffle index to select for training. Default is set to 1
+    shuffle: int, optional, default=1
+        Integer value specifying the shuffle index to select for training.
 
-    trainingsetindex: int, optional
-        Integer specifying which TrainingsetFraction to use. By default the first (note that TrainingFraction is a list in config.yaml).
+    trainingsetindex: int, optional, default=0
+        Integer specifying which TrainingsetFraction to use.
+        Note that TrainingFraction is a list in config.yaml.
 
-    Additional parameters:
+    max_snapshots_to_keep: int or None
+        Sets how many snapshots are kept, i.e. states of the trained network. Every
+        saving iteration many times a snapshot is stored, however only the last
+        ``max_snapshots_to_keep`` many are kept! If you change this to None, then all
+        are kept.
+        See: https://github.com/DeepLabCut/DeepLabCut/issues/8#issuecomment-387404835
 
-    max_snapshots_to_keep: int, or None. Sets how many snapshots are kept, i.e. states of the trained network. Every savinginteration many times
-        a snapshot is stored, however only the last max_snapshots_to_keep many are kept! If you change this to None, then all are kept.
-        See: https://github.com/AlexEMG/DeepLabCut/issues/8#issuecomment-387404835
+    displayiters: optional, default=None
+        This variable is actually set in ``pose_config.yaml``. However, you can
+        overwrite it with this hack. Don't use this regularly, just if you are too lazy
+        to dig out the ``pose_config.yaml`` file for the corresponding project. If
+        ``None``, the value from there is used, otherwise it is overwritten!
 
-    displayiters: this variable is actually set in pose_config.yaml. However, you can overwrite it with this hack. Don't use this regularly, just if you are too lazy to dig out
-        the pose_config.yaml file for the corresponding project. If None, the value from there is used, otherwise it is overwritten! Default: None
+    saveiters: optional, default=None
+        This variable is actually set in ``pose_config.yaml``. However, you can
+        overwrite it with this hack. Don't use this regularly, just if you are too lazy
+        to dig out the ``pose_config.yaml`` file for the corresponding project.
+        If ``None``, the value from there is used, otherwise it is overwritten!
 
-    saveiters: this variable is actually set in pose_config.yaml. However, you can overwrite it with this hack. Don't use this regularly, just if you are too lazy to dig out
-        the pose_config.yaml file for the corresponding project. If None, the value from there is used, otherwise it is overwritten! Default: None
+    maxiters: optional, default=None
+        This variable is actually set in ``pose_config.yaml``. However, you can
+        overwrite it with this hack. Don't use this regularly, just if you are too lazy
+        to dig out the ``pose_config.yaml`` file for the corresponding project.
+        If ``None``, the value from there is used, otherwise it is overwritten!
 
-    maxiters: this variable is actually set in pose_config.yaml. However, you can overwrite it with this hack. Don't use this regularly, just if you are too lazy to dig out
-        the pose_config.yaml file for the corresponding project. If None, the value from there is used, otherwise it is overwritten! Default: None
+    allow_growth: bool, optional, default=True.
+        For some smaller GPUs the memory issues happen. If ``True``, the memory
+        allocator does not pre-allocate the entire specified GPU memory region, instead
+        starting small and growing as needed.
+        See issue: https://forum.image.sc/t/how-to-stop-running-out-of-vram/30551/2
 
-    allow_growth: bool, default false.
-        For some smaller GPUs the memory issues happen. If true, the memory allocator does not pre-allocate the entire specified
-        GPU memory region, instead starting small and growing as needed. See issue: https://forum.image.sc/t/how-to-stop-running-out-of-vram/30551/2
-
-    gputouse: int, optional. Natural number indicating the number of your GPU (see number in nvidia-smi). If you do not have a GPU put None.
+    gputouse: optional, default=None
+        Natural number indicating the number of your GPU (see number in nvidia-smi).
+        If you do not have a GPU put None.
         See: https://nvidia.custhelp.com/app/answers/detail/a_id/3751/~/useful-nvidia-smi-queries
+
+    autotune: bool, optional, default=False
+        Property of TensorFlow, somehow faster if ``False``
+        (as Eldar found out, see https://github.com/tensorflow/tensorflow/issues/13317).
+
+    keepdeconvweights: bool, optional, default=True
+        Also restores the weights of the deconvolution layers (and the backbone) when
+        training from a snapshot. Note that if you change the number of bodyparts, you
+        need to set this to false for re-training.
 
     term_gpu:: bool, optional
         Terminate GPU processes and release GPU memory upon completion.
 
     autotune: property of TensorFlow, somehow faster if 'false' (as Eldar found out, see https://github.com/tensorflow/tensorflow/issues/13317). Default: False
 
-    keepdeconvweights: bool, default: true
-        Also restores the weights of the deconvolution layers (and the backbone) when training from a snapshot. Note that if you change the number of bodyparts, you need to
-        set this to false for re-training.
+    modelprefix: str, optional, default=""
+        Directory containing the deeplabcut models to use when evaluating the network.
+        By default, the models are assumed to exist in the project folder.
 
-    Example
+    Returns
+    -------
+    None
+
+    Examples
     --------
-    for training the network for first shuffle of the training dataset.
+    To train the network for first shuffle of the training dataset
+
     >>> deeplabcut.train_network('/analysis/project/reaching-task/config.yaml')
-    --------
 
-    for training the network for second shuffle of the training dataset.
-    >>> deeplabcut.train_network('/analysis/project/reaching-task/config.yaml',shuffle=2,keepdeconvweights=True)
-    --------
+    To train the network for second shuffle of the training dataset
 
+    >>> deeplabcut.train_network(
+            '/analysis/project/reaching-task/config.yaml',
+            shuffle=2,
+            keepdeconvweights=True,
+        )
     """
+    if allow_growth:
+        os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
     import tensorflow as tf
 
     # reload logger.
@@ -133,7 +167,7 @@ def train_network(
 
     # Read file path for pose_config file. >> pass it on
     cfg = auxiliaryfunctions.read_config(config)
-    modelfoldername = auxiliaryfunctions.GetModelFolder(
+    modelfoldername = auxiliaryfunctions.get_model_folder(
         cfg["TrainingFraction"][trainingsetindex], shuffle, cfg, modelprefix=modelprefix
     )
     poseconfigfile = Path(
@@ -160,7 +194,9 @@ def train_network(
     try:
         cfg_dlc = auxiliaryfunctions.read_plainconfig(poseconfigfile)
         if "multi-animal" in cfg_dlc["dataset_type"]:
-            from deeplabcut.pose_estimation_tensorflow.core.train_multianimal import train
+            from deeplabcut.pose_estimation_tensorflow.core.train_multianimal import (
+                train,
+            )
 
             print("Selecting multi-animal trainer")
             train(

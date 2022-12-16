@@ -29,7 +29,9 @@ by DeepLabCut, default values (see the augmentation variables in the
 [default pose_cfg.yaml](https://github.com/DeepLabCut/DeepLabCut/blob/master/deeplabcut/pose_cfg.yaml#L23-L74) file)
 can be readily overwritten prior to training.
 
-When you `create_training_dataset` [you have several options](https://github.com/AlexEMG/DeepLabCut/blob/master/docs/UseOverviewGuide.md#create-training-dataset) on what types of augmentation to use.
+Another option we discuss is a different data-efficient approach based on a method called active learning. See this [this blog post](https://github.com/DeepLabCut/DeepLabCut/blob/master/docs/recipes/nn.md#using-custom-image-augmentation) for further details. 
+
+When you `create_training_dataset` [you have several options](https://github.com/DeepLabCut/DeepLabCut/wiki/DOCSTRINGS#create_training_dataset) on what types of augmentation to use.
 ```python
 deeplabcut.create_training_dataset(configpath, augmenter_type='imgaug')
 ```
@@ -57,6 +59,7 @@ deeplabcut.auxiliaryfunctions.edit_config(
 )
 ```
 
+
 ## Evaluating intermediate (and all) snapshots
 
 The latest snapshot stored during training may not necessarily be the one that yields the highest performance. Therefore, you should analyze ALL snapshots, and select the best. Put 'all' in the snapshots section of the config.yaml to do this.
@@ -74,7 +77,7 @@ You always select the network type when you create a training data set: i.e., st
 ***
 ## ResNets:
 
-In Mathis et al. 2018 we benchmarked three networks: **ResNet-50, ResNet-101, and ResNet-101ws**. For ALL lab applications, ResNet-50 was enough. For all the demo videos on [www.deeplabcut.org](http://www.mousemotorlab.org/deeplabcut) the backbones are ResNet-50's. Thus, we recommend making this your go-to workhorse for data analysis. Here is a figure from the paper, see panel "B" (they are all within a few pixels of eachother on the open-field dataset):
+In Mathis et al. 2018 we benchmarked three networks: **ResNet-50, ResNet-101, and ResNet-101ws**. For ALL lab applications, ResNet-50 was enough. For all the demo videos on [www.deeplabcut.org](http://www.mousemotorlab.org/deeplabcut) the backbones are ResNet-50's. Thus, we recommend making this your go-to workhorse for data analysis. Here is a figure from the paper, see panel "B" (they are all within a few pixels of each other on the open-field dataset):
 
 <p align="center">
 <img src="https://images.squarespace-cdn.com/content/v1/57f6d51c9f74566f55ecf271/1548558406678-S32H6T3M3U7BWVS4IGYD/ke17ZwdGBToddI8pDm48kD4CqqHoJgLzZVYacqX5G8QUqsxRUqqbr1mOJYKfIPR7LoDQ9mXPOjoJoqy81S2I8N_N4V1vUb5AoIIIbLZhVYy7Mythp_T-mtop-vrsUOmeInPi9iDjx9w8K4ZfjXt2dqTB9h4P9po3-YSCqzKkit0PccqviqYX7RTAdOBUgXwbCjLISwBs8eEdxAxTptZAUg/SupplFig2-01.png?format=1000w" width="80%">

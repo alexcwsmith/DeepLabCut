@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Adapted from DeeperCut by Eldar Insafutdinov
@@ -15,10 +15,12 @@ import argparse
 import logging
 import os
 import threading
+import warnings
 from pathlib import Path
 from datetime import datetime as dt
 
 import tensorflow as tf
+
 tf.compat.v1.disable_eager_execution()
 import tf_slim as slim
 
@@ -86,8 +88,7 @@ def load_and_enqueue(sess, enqueue_op, coord, dataset, placeholders):
 def start_preloading(sess, enqueue_op, dataset, placeholders):
     coord = tf.compat.v1.train.Coordinator()
     t = threading.Thread(
-        target=load_and_enqueue,
-        args=(sess, enqueue_op, coord, dataset, placeholders),
+        target=load_and_enqueue, args=(sess, enqueue_op, coord, dataset, placeholders),
     )
     t.start()
     return coord, t
@@ -99,10 +100,7 @@ def get_optimizer(loss_op, cfg):
         print("Switching to cosine decay schedule with adam!")
         cfg["optimizer"] = "adam"
         learning_rate = tf.compat.v1.train.cosine_decay(
-            cfg["lr_init"],
-            tstep,
-            cfg["decay_steps"],
-            alpha=cfg["alpha_r"]
+            cfg["lr_init"], tstep, cfg["decay_steps"], alpha=cfg["alpha_r"]
         )
     else:
         learning_rate = tf.compat.v1.placeholder(tf.float32, shape=[])
@@ -151,7 +149,7 @@ def train(
     maxiters,
     max_to_keep=5,
     keepdeconvweights=True,
-    allow_growth=False,
+    allow_growth=True,
 ):
     start_path = os.getcwd()
     os.chdir(
@@ -208,7 +206,7 @@ def train(
     restorer = tf.compat.v1.train.Saver(variables_to_restore)
     saver = tf.compat.v1.train.Saver(
         max_to_keep=max_to_keep
-    )  # selects how many snapshots are stored, see https://github.com/AlexEMG/DeepLabCut/issues/8#issuecomment-387404835
+    )  # selects how many snapshots are stored, see https://github.com/DeepLabCut/DeepLabCut/issues/8#issuecomment-387404835
 
     if allow_growth:
         config = tf.compat.v1.ConfigProto()
@@ -219,6 +217,14 @@ def train(
 
     coord, thread = start_preloading(sess, enqueue_op, dataset, placeholders)
     train_writer = tf.compat.v1.summary.FileWriter(cfg["log_dir"], sess.graph)
+
+    # Auto-switch to Adam on M1/M2 chips, as the momentum optimizer crashes
+    from tensorflow.python.platform import build_info
+
+    info = build_info.build_info
+    if not info["is_cuda_build"]:  # Apple Silicon is not built with CUDA
+        warnings.warn("Switching to Adam, as SGD crashes on Apple Silicon.")
+        cfg["optimizer"] = "adam"
 
     if cfg.get("freezeencoder", False):
         if "efficientnet" in net_type:
@@ -266,17 +272,20 @@ def train(
     print("Training parameter:")
     print(cfg)
     print("Starting training....")
+
     startTime=dt.now()
+    max_iter += start_iter  # max_iter is relative to start_iter
+
     for it in range(start_iter, max_iter + 1):
         if "efficientnet" in net_type:
-            dict = {tstep: it}
-            current_lr = sess.run(learning_rate, feed_dict=dict)
+            lr_dict = {tstep: it - start_iter}
+            current_lr = sess.run(learning_rate, feed_dict=lr_dict)
         else:
-            current_lr = lr_gen.get_lr(it)
-            dict = {learning_rate: current_lr}
+            current_lr = lr_gen.get_lr(it - start_iter)
+            lr_dict = {learning_rate: current_lr}
 
         [_, loss_val, summary] = sess.run(
-            [train_op, total_loss, merged_summaries], feed_dict=dict
+            [train_op, total_loss, merged_summaries], feed_dict=lr_dict
         )
         cum_loss += loss_val
         train_writer.add_summary(summary, it)

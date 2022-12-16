@@ -20,8 +20,9 @@ channels:
 dependencies:
   - python=3.8
   - pip
+  - ipython
   - jupyter
   - nb_conda
   - ffmpeg
   - pip:
-    - "deeplabcut[gui]"
+    - "deeplabcut[gui,tf]"

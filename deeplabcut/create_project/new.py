@@ -1,10 +1,10 @@
 """
 DeepLabCut2.2 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
 
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
@@ -22,43 +22,77 @@ def create_new_project(
     videos,
     working_directory=None,
     copy_videos=False,
-    videotype=".avi",
+    videotype="",
     multianimal=False,
 ):
-    """Creates a new project directory, sub-directories and a basic configuration file. The configuration file is loaded with the default values. Change its parameters to your projects need.
+    r"""Create the necessary folders and files for a new project.
+
+    Creating a new project involves creating the project directory, sub-directories and
+    a basic configuration file. The configuration file is loaded with the default
+    values. Change its parameters to your projects need.
 
     Parameters
     ----------
     project : string
-        String containing the name of the project.
+        The name of the project.
 
     experimenter : string
-        String containing the name of the experimenter.
+        The name of the experimenter.
 
-    videos : list
-        A list of string containing the full paths of the videos to include in the project.
-        Attention: Can also be a directory, then all videos of videotype will be imported.
+    videos : list[str]
+        A list of strings representing the full paths of the videos to include in the
+        project. If the strings represent a directory instead of a file, all videos of
+        ``videotype`` will be imported.
 
     working_directory : string, optional
-        The directory where the project will be created. The default is the ``current working directory``; if provided, it must be a string.
+        The directory where the project will be created. The default is the
+        ``current working directory``.
 
-    copy_videos : bool, optional
-        If this is set to True, the videos are copied to the ``videos`` directory. If it is False,symlink of the videos are copied to the project/videos directory. The default is ``False``; if provided it must be either
-        ``True`` or ``False``.
+    copy_videos : bool, optional, Default: False.
+        If True, the videos are copied to the ``videos`` directory. If False, symlinks
+        of the videos will be created in the ``project/videos`` directory; in the event
+        of a failure to create symbolic links, videos will be moved instead.
 
     multianimal: bool, optional. Default: False.
         For creating a multi-animal project (introduced in DLC 2.2)
 
-    Example
+    Returns
+    -------
+    str
+        Path to the new project configuration file.
+
+    Examples
     --------
-    Linux/MacOs
-    >>> deeplabcut.create_new_project('reaching-task','Linus',['/data/videos/mouse1.avi','/data/videos/mouse2.avi','/data/videos/mouse3.avi'],'/analysis/project/')
-    >>> deeplabcut.create_new_project('reaching-task','Linus',['/data/videos'],videotype='.mp4')
+
+    Linux/MacOS:
+
+    >>> deeplabcut.create_new_project(
+            project='reaching-task',
+            experimenter='Linus',
+            videos=[
+                '/data/videos/mouse1.avi',
+                '/data/videos/mouse2.avi',
+                '/data/videos/mouse3.avi'
+            ],
+            working_directory='/analysis/project/',
+        )
+    >>> deeplabcut.create_new_project(
+            project='reaching-task',
+            experimenter='Linus',
+            videos=['/data/videos'],
+            videotype='.mp4',
+        )
 
     Windows:
-    >>> deeplabcut.create_new_project('reaching-task','Bill',[r'C:\yourusername\rig-95\Videos\reachingvideo1.avi'], copy_videos=True)
-    Users must format paths with either:  r'C:\ OR 'C:\\ <- i.e. a double backslash \ \ )
 
+    >>> deeplabcut.create_new_project(
+            'reaching-task',
+            'Bill',
+            [r'C:\yourusername\rig-95\Videos\reachingvideo1.avi'],
+            copy_videos=True,
+        )
+
+    Users must format paths with either:  r'C:\ OR 'C:\\ <- i.e. a double backslash \ \ )
     """
     from datetime import datetime as dt
     from deeplabcut.utils import auxiliaryfunctions
@@ -83,7 +117,7 @@ def create_new_project(
     day = date.day
     d = str(month[0:3] + str(day))
     date = dt.today().strftime("%Y-%m-%d")
-    if working_directory == None:
+    if working_directory is None:
         working_directory = "."
     wd = Path(working_directory).resolve()
     project_name = "{pn}-{exp}-{date}".format(pn=project, exp=experimenter, date=date)
@@ -92,7 +126,7 @@ def create_new_project(
     # Create project and sub-directories
     if not DEBUG and project_path.exists():
         print('Project "{}" already exists!'.format(project_path))
-        return
+        return  os.path.join(str(project_path), "config.yaml")
     video_path = project_path / "videos"
     data_path = project_path / "labeled-data"
     shuffles_path = project_path / "training-datasets"
@@ -107,7 +141,7 @@ def create_new_project(
         # Check if it is a folder
         if os.path.isdir(i):
             vids_in_dir = [
-                os.path.join(i, vp) for vp in os.listdir(i) if videotype in vp
+                os.path.join(i, vp) for vp in os.listdir(i) if vp.endswith(videotype)
             ]
             vids = vids + vids_in_dir
             if len(vids_in_dir) == 0:
@@ -138,7 +172,7 @@ def create_new_project(
         p.mkdir(parents=True, exist_ok=True)
 
     destinations = [video_path.joinpath(vp.name) for vp in videos]
-    if copy_videos == True:
+    if copy_videos:
         print("Copying the videos")
         for src, dst in zip(videos, destinations):
             shutil.copy(
@@ -158,18 +192,19 @@ def create_new_project(
             except OSError:
                 try:
                     import subprocess
+
                     subprocess.check_call("mklink %s %s" % (dst, src), shell=True)
-                except OSError:
-                    print("Symlink creation impossible (exFat architecture?): "
-                          "cutting/pasting the video instead.")
+                except (OSError, subprocess.CalledProcessError):
+                    print(
+                        "Symlink creation impossible (exFat architecture?): "
+                        "cutting/pasting the video instead."
+                    )
                     shutil.move(os.fspath(src), os.fspath(dst))
                     print("{} moved to {}".format(src, dst))
             videos = destinations
 
-    if copy_videos == True:
-        videos = (
-            destinations
-        )  # in this case the *new* location should be added to the config file
+    if copy_videos:
+        videos = destinations  # in this case the *new* location should be added to the config file
 
     # adds the video list to the config.yaml file
     video_sets = {}
@@ -213,6 +248,7 @@ def create_new_project(
         ]
         cfg_file["default_augmenter"] = "multi-animal-imgaug"
         cfg_file["default_net_type"] = "dlcrnet_ms5"
+        cfg_file["default_track_method"] = "ellipse"
     else:
         cfg_file, ruamelFile = auxiliaryfunctions.create_config_template()
         cfg_file["multianimalproject"] = False
@@ -240,9 +276,7 @@ def create_new_project(
     cfg_file["y2"] = 624
     cfg_file[
         "batch_size"
-    ] = (
-        8
-    )  # batch size during inference (video - analysis); see https://www.biorxiv.org/content/early/2018/10/30/457242
+    ] = 8  # batch size during inference (video - analysis); see https://www.biorxiv.org/content/early/2018/10/30/457242
     cfg_file["corner2move2"] = (50, 50)
     cfg_file["move2corner"] = True
     cfg_file["skeleton_color"] = "black"

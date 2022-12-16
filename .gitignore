@@ -1,17 +1,18 @@
+#Jupyter book build directory
+_build/*
 #Data and examples
-examples/open*
-examples/Reac*
-examples/TES*
-examples/multi*
-examples/3D*
-examples/OUT
-examples/*
+/examples/open*
+/examples/Reac*
+/examples/TES*
+/examples/multi*
+/examples/3D*
+/examples/m3*
+/examples/OUT
 .local
 .DS_Store
 examples/.DS_Store
-examples/*
-
-=======
+*~
+>>>>>>> bc2b113d31b4918169c6a0e415dfeb8d518a67af
 # Tensorflow checkpoints
 *.ckpt
 snapshot-*
@@ -113,7 +114,7 @@ ENV/
 # Spyder project settings
 .spyderproject
 .spyproject
-.vscode
+.vscode/*
 
 # Rope project settings
 .ropeproject

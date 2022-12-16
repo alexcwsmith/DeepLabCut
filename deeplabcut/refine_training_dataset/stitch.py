@@ -6,10 +6,17 @@ import pandas as pd
 import pickle
 import re
 import scipy.linalg.interpolative as sli
+import shelve
 import warnings
 from collections import defaultdict
-from deeplabcut.pose_estimation_tensorflow.lib.trackingutils import calc_iou
-from deeplabcut.utils import auxiliaryfunctions
+
+import deeplabcut
+from deeplabcut.utils.auxfun_videos import VideoWriter
+from functools import partial
+from deeplabcut.pose_estimation_tensorflow.lib.trackingutils import (
+    calc_iou, TRACK_METHODS,
+)
+from deeplabcut.utils import auxiliaryfunctions, auxfun_multianimal
 from itertools import combinations, cycle
 from networkx.algorithms.flow import preflow_push
 from pathlib import Path
@@ -464,8 +471,8 @@ class TrackletStitcher:
 
         # Note that if tracklets are very short, some may actually be part of the same track
         # and thus incorrectly reflect separate track endpoints...
-        self._first_tracklets = sorted(self, key=lambda t: t.start)[:self.n_tracks]
-        self._last_tracklets = sorted(self, key=lambda t: t.end)[-self.n_tracks:]
+        self._first_tracklets = sorted(self, key=lambda t: t.start)[: self.n_tracks]
+        self._last_tracklets = sorted(self, key=lambda t: t.end)[-self.n_tracks :]
 
         # Map each Tracklet to an entry and output nodes and vice versa,
         # which is convenient once the tracklets are stitched.
@@ -476,6 +483,13 @@ class TrackletStitcher:
         self._mapping_inv = {
             label: k for k, v in self._mapping.items() for label in v.values()
         }
+
+        # Store tracklets and corresponding negatives (those that overlap in time)
+        self._lu_overlap = defaultdict(list)
+        for tracklet1, tracklet2 in combinations(self, 2):
+            if tracklet2 in tracklet1:
+                self._lu_overlap[tracklet1].append(tracklet2)
+                self._lu_overlap[tracklet2].append(tracklet1)
 
     def __getitem__(self, item):
         return self.tracklets[item]
@@ -571,6 +585,30 @@ class TrackletStitcher:
                         max_gap = val
                     break
         return max_gap
+
+    def mine(self, n_samples):
+        p = np.asarray([t.likelihood for t in self])
+        p /= p.sum()
+        triplets = []
+        while len(triplets) != n_samples:
+            tracklet = np.random.choice(self, p=p)
+            overlapping_tracklets = self._lu_overlap[tracklet]
+            if not overlapping_tracklets:
+                continue
+            # Pick the closest (spatially) overlapping tracklet
+            ind_min = np.argmin(
+                [tracklet.distance_to(t) for t in overlapping_tracklets]
+            )
+            overlapping_tracklet = overlapping_tracklets[ind_min]
+            common_inds = set(tracklet.inds).intersection(overlapping_tracklet.inds)
+            ind_anchor = np.random.choice(list(common_inds))
+            anchor = tracklet.get_data_at(ind_anchor)[:, :2].astype(int)
+            neg = overlapping_tracklet.get_data_at(ind_anchor)[:, :2].astype(int)
+            ind_pos = np.random.choice(tracklet.inds[tracklet.inds != ind_anchor])
+            pos = tracklet.get_data_at(ind_pos)[:, :2].astype(int)
+            triplet = ((anchor, ind_anchor), (pos, ind_pos), (neg, ind_anchor))
+            triplets.append(triplet)
+        return triplets
 
     def build_graph(
         self,
@@ -850,11 +888,15 @@ class TrackletStitcher:
             df = df.join(df2, how="outer")
         return df
 
-    def write_tracks(self, output_name="", animal_names=None):
+    def write_tracks(self, output_name="", suffix="", animal_names=None, save_as_csv=False):
         df = self.format_df(animal_names)
         if not output_name:
-            output_name = self.filename.replace("pickle", "h5")
+            if suffix:
+                suffix = "_" + suffix
+            output_name = self.filename.replace(".pickle", f"{suffix}.h5")
         df.to_hdf(output_name, "tracks", format="table", mode="w")
+        if save_as_csv:
+            df.to_csv(output_name.replace(".h5", ".csv"))
 
     @staticmethod
     def calculate_edge_weight(tracklet1, tracklet2):
@@ -948,7 +990,7 @@ class TrackletStitcher:
 def stitch_tracklets(
     config_path,
     videos,
-    videotype="avi",
+    videotype="",
     shuffle=1,
     trainingsetindex=0,
     n_tracks=None,
@@ -957,10 +999,12 @@ def stitch_tracklets(
     prestitch_residuals=True,
     max_gap=None,
     weight_func=None,
-    track_method="ellipse",
     destfolder=None,
     modelprefix="",
+    track_method="",
     output_name="",
+    transformer_checkpoint="",
+    save_as_csv=False,
 ):
     """
     Stitch sparse tracklets into full tracks via a graph-based,
@@ -975,7 +1019,8 @@ def stitch_tracklets(
         A list of strings containing the full paths to videos for analysis or a path to the directory, where all the videos with same extension are stored.
 
     videotype: string, optional
-        Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed. The default is ``.avi``
+        Checks for the extension of the video in case the input to the video is a directory.\n Only videos with this extension are analyzed.
+        If left unspecified, videos with common extensions ('avi', 'mp4', 'mov', 'mpeg', 'mkv') are kept.
 
     shuffle: int, optional
         An integer specifying the shuffle index of the training dataset used for training the network. The default is 1.
@@ -1024,53 +1069,94 @@ def stitch_tracklets(
         belong to the same track; i.e., the higher the confidence that the
         tracklets should be stitched together, the lower the returned value.
 
-    track_method: str, optional
-        Method used to track animals, either 'box', 'skeleton', or 'ellipse' (default).
-
     destfolder: string, optional
         Specifies the destination folder for analysis data (default is the path of the video). Note that for subsequent analysis this
         folder also needs to be passed.
+
+    track_method: string, optional
+         Specifies the tracker used to generate the pose estimation data.
+         For multiple animals, must be either 'box', 'skeleton', or 'ellipse'
+         and will be taken from the config.yaml file if none is given.
 
     output_name : str, optional
         Name of the output h5 file.
         By default, tracks are automatically stored into the same directory
         as the pickle file and with its name.
 
+    save_as_csv: bool, optional
+        Whether to write the tracks to a CSV file too (False by default).
+
     Returns
     -------
     A TrackletStitcher object
     """
-    vids = auxiliaryfunctions.Getlistofvideos(videos, videotype)
+    vids = deeplabcut.utils.auxiliaryfunctions.get_list_of_videos(videos, videotype)
     if not vids:
         print("No video(s) found. Please check your path!")
         return
 
     cfg = auxiliaryfunctions.read_config(config_path)
+    track_method = auxfun_multianimal.get_track_method(cfg, track_method=track_method)
+
     animal_names = cfg["individuals"]
     if n_tracks is None:
         n_tracks = len(animal_names)
 
-    DLCscorer, _ = auxiliaryfunctions.GetScorerName(
+    DLCscorer, _ = deeplabcut.utils.auxiliaryfunctions.GetScorerName(
         cfg,
         shuffle,
         cfg["TrainingFraction"][trainingsetindex],
         modelprefix=modelprefix,
     )
 
+    if transformer_checkpoint:
+        from deeplabcut.pose_tracking_pytorch import inference
+
+        dlctrans = inference.DLCTrans(checkpoint=transformer_checkpoint)
+
+    def trans_weight_func(tracklet1, tracklet2, nframe, feature_dict):
+        zfill_width = int(np.ceil(np.log10(nframe)))
+        if tracklet1 < tracklet2:
+            ind_img1 = tracklet1.inds[-1]
+            coord1 = tracklet1.data[-1][:, :2]
+            ind_img2 = tracklet2.inds[0]
+            coord2 = tracklet2.data[0][:, :2]
+        else:
+            ind_img2 = tracklet2.inds[-1]
+            ind_img1 = tracklet1.inds[0]
+            coord2 = tracklet2.data[-1][:, :2]
+            coord1 = tracklet1.data[0][:, :2]
+        t1 = (coord1, ind_img1)
+        t2 = (coord2, ind_img2)
+
+        dist = dlctrans(t1, t2, zfill_width, feature_dict)
+        dist = (dist + 1) / 2
+
+        return -dist
+
     for video in vids:
         print("Processing... ", video)
+        nframe = len(VideoWriter(video))
         videofolder = str(Path(video).parents[0])
         dest = destfolder or videofolder
-        auxiliaryfunctions.attempttomakefolder(dest)
+        deeplabcut.utils.auxiliaryfunctions.attempttomakefolder(dest)
         vname = Path(video).stem
+
+        feature_dict_path = os.path.join(dest, vname + DLCscorer + "_bpt_features.pickle")
+        # should only exist one
+        if transformer_checkpoint:
+            import dbm
+            try:
+                feature_dict = shelve.open(feature_dict_path, flag='r')
+            except dbm.error:
+                raise FileNotFoundError(
+                    f'{feature_dict_path} does not exist. Did you run transformer_reID()?'
+                )
+
         dataname = os.path.join(dest, vname + DLCscorer + ".h5")
-        if track_method == "ellipse":
-            method = "el"
-        elif track_method == "box":
-            method = "bx"
-        else:
-            method = "sk"
-        pickle_file = dataname.split(".h5")[0] + f"_{method}.pickle"
+
+        method = TRACK_METHODS[track_method]
+        pickle_file = dataname.split(".h5")[0] + f"{method}.pickle"
         try:
             stitcher = TrackletStitcher.from_pickle(
                 pickle_file, n_tracks, min_length, split_tracklets, prestitch_residuals
@@ -1081,8 +1167,31 @@ def stitch_tracklets(
                 def weight_func(t1, t2):
                     w = 0.01 if t1.identity == t2.identity else 1
                     return w * stitcher.calculate_edge_weight(t1, t2)
-            stitcher.build_graph(max_gap=max_gap, weight_func=weight_func)
+
+            if transformer_checkpoint:
+                stitcher.build_graph(
+                    max_gap=max_gap,
+                    weight_func=partial(
+                        trans_weight_func, nframe=nframe, feature_dict=feature_dict
+                    ),
+                )
+            else:
+                stitcher.build_graph(max_gap=max_gap, weight_func=weight_func)
+
             stitcher.stitch()
-            stitcher.write_tracks(output_name, animal_names)
+            if transformer_checkpoint:
+                stitcher.write_tracks(
+                    output_name=output_name,
+                    animal_names=animal_names,
+                    suffix="tr",
+                    save_as_csv=save_as_csv,
+                )
+            else:
+                stitcher.write_tracks(
+                    output_name=output_name,
+                    animal_names=animal_names,
+                    suffix="",
+                    save_as_csv=save_as_csv,
+                )
         except FileNotFoundError as e:
             print(e, "\nSkipping...")

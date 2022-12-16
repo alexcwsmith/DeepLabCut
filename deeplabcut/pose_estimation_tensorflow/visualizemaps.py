@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
@@ -92,7 +92,7 @@ def extract_maps(
             )
 
     # Loading human annotatated data
-    trainingsetfolder = auxiliaryfunctions.GetTrainingSetFolder(cfg)
+    trainingsetfolder = auxiliaryfunctions.get_training_set_folder(cfg)
     Data = pd.read_hdf(
         os.path.join(
             cfg["project_path"],
@@ -112,14 +112,14 @@ def extract_maps(
         ##################################################
         # Load and setup CNN part detector
         ##################################################
-        datafn, metadatafn = auxiliaryfunctions.GetDataandMetaDataFilenames(
+        datafn, metadatafn = auxiliaryfunctions.get_data_and_metadata_filenames(
             trainingsetfolder, trainFraction, shuffle, cfg
         )
 
         modelfolder = os.path.join(
             cfg["project_path"],
             str(
-                auxiliaryfunctions.GetModelFolder(
+                auxiliaryfunctions.get_model_folder(
                     trainFraction, shuffle, cfg, modelprefix=modelprefix
                 )
             ),
@@ -131,7 +131,7 @@ def extract_maps(
             trainIndices,
             testIndices,
             trainFraction,
-        ) = auxiliaryfunctions.LoadMetadata(
+        ) = auxiliaryfunctions.load_metadata(
             os.path.join(cfg["project_path"], metadatafn)
         )
         try:
@@ -149,7 +149,7 @@ def extract_maps(
         evaluationfolder = os.path.join(
             cfg["project_path"],
             str(
-                auxiliaryfunctions.GetEvaluationFolder(
+                auxiliaryfunctions.get_evaluation_folder(
                     trainFraction, shuffle, cfg, modelprefix=modelprefix
                 )
             ),
@@ -224,11 +224,15 @@ def extract_maps(
 
             DATA = {}
             for imageindex, imagename in tqdm(Indices):
-                image = imread(os.path.join(cfg["project_path"], imagename), mode="RGB")
+                image = imread(
+                    os.path.join(cfg["project_path"], *imagename), mode="skimage"
+                )
+
                 if scale != 1:
                     image = imresize(image, scale)
 
                 image_batch = data_to_input(image)
+
                 # Compute prediction with the CNN
                 outputs_np = sess.run(outputs, feed_dict={inputs: image_batch})
 
@@ -414,8 +418,8 @@ def extract_save_all_maps(
     from deeplabcut.utils.auxiliaryfunctions import (
         read_config,
         attempttomakefolder,
-        GetEvaluationFolder,
-        IntersectionofBodyPartsandOnesGivenbyUser,
+        get_evaluation_folder,
+        intersection_of_body_parts_and_ones_given_by_user,
     )
     from tqdm import tqdm
 
@@ -424,7 +428,7 @@ def extract_save_all_maps(
         config, shuffle, trainingsetindex, gputouse, rescale, Indices, modelprefix
     )
 
-    comparisonbodyparts = IntersectionofBodyPartsandOnesGivenbyUser(
+    comparisonbodyparts = intersection_of_body_parts_and_ones_given_by_user(
         cfg, comparisonbodyparts
     )
 
@@ -433,7 +437,7 @@ def extract_save_all_maps(
         if not dest_folder:
             dest_folder = os.path.join(
                 cfg["project_path"],
-                str(GetEvaluationFolder(frac, shuffle, cfg, modelprefix=modelprefix)),
+                str(get_evaluation_folder(frac, shuffle, cfg, modelprefix=modelprefix)),
                 "maps",
             )
         attempttomakefolder(dest_folder)
@@ -455,7 +459,7 @@ def extract_save_all_maps(
                 if not extract_paf:
                     paf = None
                 label = "train" if trainingframe else "test"
-                imname = os.path.split(os.path.splitext(impath)[0])[1]
+                imname = impath[-1]
                 scmap, (locref_x, locref_y), paf = resize_all_maps(
                     image, scmap, locref, paf
                 )
@@ -477,9 +481,9 @@ def extract_save_all_maps(
                     locref_x_ = locref_x[:, :, to_plot]
                     locref_y_ = locref_y[:, :, to_plot]
                 else:
-                    map_ = scmap[:, :]
-                    locref_x_ = locref_x[:, :]
-                    locref_y_ = locref_y[:, :]
+                    map_ = scmap[..., 0]
+                    locref_x_ = locref_x[..., 0]
+                    locref_y_ = locref_y[..., 0]
                 fig1, _ = visualize_scoremaps(image, map_)
                 temp = dest_path.format(
                     imname=imname,

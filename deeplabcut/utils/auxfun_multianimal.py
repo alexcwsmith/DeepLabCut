@@ -1,29 +1,87 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
 
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
+import math
 import os
 import pickle
+import random
+import shelve
+import warnings
 from itertools import combinations
 from pathlib import Path
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 
-from deeplabcut.utils import auxiliaryfunctions
+from deeplabcut.utils import auxiliaryfunctions, conversioncode
 from deeplabcut.generate_training_dataset import trainingsetmanipulation
+from deeplabcut.pose_estimation_tensorflow.lib.trackingutils import TRACK_METHODS
+
+
+def reorder_individuals_in_df(df: pd.DataFrame, order: list) -> pd.DataFrame:
+    """
+    Reorders data of df to match the order given in a list
+
+    Parameters:
+    ----------
+    df: pd.DataFrame
+        Data from tracked .h5 file
+    order: list of str
+        Desired order of individuals
+
+    Return:
+    -------
+        df: pd.DataFrame
+            Reordered DataFrame
+    """
+    columns = df.columns
+    inds = df.index
+
+    data = df.loc(axis=1)[:, order].to_numpy()
+    df = pd.DataFrame(data, columns=columns, index=inds)
+
+    return df
+
 
 def extractindividualsandbodyparts(cfg):
     individuals = cfg["individuals"].copy()
     if len(cfg["uniquebodyparts"]) > 0:
         individuals.append("single")
     return individuals, cfg["uniquebodyparts"], cfg["multianimalbodyparts"]
+
+
+def get_track_method(cfg, track_method=""):
+    if cfg.get("multianimalproject", False):
+        if track_method != "":
+            # check if it exists:
+            if track_method not in TRACK_METHODS:
+                raise ValueError(
+                    f"Invalid tracking method. Only {', '.join(TRACK_METHODS)} are currently supported."
+                )
+            return track_method
+        else:  # default
+            track_method = cfg.get("default_track_method", "")
+            if not track_method:
+                warnings.warn(
+                    "default_track_method` is undefined in the config.yaml file and will be set to `ellipse`."
+                )
+                track_method = "ellipse"
+                cfg["default_track_method"] = track_method
+                auxiliaryfunctions.write_config(
+                    str(Path(cfg["project_path"]) / "config.yaml"), cfg
+                )
+            return track_method
+
+    else:  # no tracker for single-animal projects
+        return ""
 
 
 def IntersectionofIndividualsandOnesGivenbyUser(cfg, individuals):
@@ -57,6 +115,33 @@ def validate_paf_graph(cfg, paf_graph):
             f"For multi-animal projects, all multianimalbodyparts should be connected. "
             f"Ideally there should be at least one (multinode) path from each multianimalbodyparts to each other multianimalbodyparts. "
         )
+
+
+def prune_paf_graph(list_of_edges, desired_n_edges=None, average_degree=None):
+    if not (desired_n_edges or average_degree):
+        raise ValueError(
+            "Either `desired_n_edges` or `average_degree` must be specified."
+        )
+
+    G = nx.Graph(list_of_edges)
+    n_edges = len(G.edges)
+    n_nodes = len(G.nodes)
+    if average_degree is not None:
+        # (average_degree / 2) as many edges as there are nodes is required
+        # for undirected graphs to reach the target degree.
+        desired_n_edges = math.ceil(n_nodes * average_degree / 2)
+    if not n_nodes - 1 <= desired_n_edges < n_edges:
+        raise ValueError(
+            f"""`desired_n_edges` should be greater than or equal to {n_nodes - 1},
+            but smaller than {n_edges}."""
+        )
+
+    while True:
+        g = nx.Graph(random.sample(G.edges, desired_n_edges))
+        if len(g.nodes) == n_nodes and nx.is_connected(g):
+            print("Valid subgraph found...")
+            break
+    return [sorted(edge) for edge in g.edges]
 
 
 def getpafgraph(cfg, printnames=True):
@@ -107,6 +192,7 @@ def SaveFullMultiAnimalData(data, metadata, dataname, suffix="_full"):
     """ Save predicted data as h5 file and metadata as pickle file; created by predict_videos.py """
     data_path = dataname.split(".h5")[0] + suffix + ".pickle"
     metadata_path = dataname.split(".h5")[0] + "_meta.pickle"
+
     with open(data_path, "wb") as f:
         pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
     with open(metadata_path, "wb") as f:
@@ -116,9 +202,13 @@ def SaveFullMultiAnimalData(data, metadata, dataname, suffix="_full"):
 
 def LoadFullMultiAnimalData(dataname):
     """ Save predicted data as h5 file and metadata as pickle file; created by predict_videos.py """
-    with open(dataname.split(".h5")[0] + "_full.pickle", "rb") as handle:
-        data = pickle.load(handle)
-    with open(dataname.split(".h5")[0] + "_meta.pickle", "rb") as handle:
+    data_file = dataname.split(".h5")[0] + "_full.pickle"
+    try:
+        with open(data_file, "rb") as handle:
+            data = pickle.load(handle)
+    except (pickle.UnpicklingError, FileNotFoundError):
+        data = shelve.open(data_file, flag="r")
+    with open(data_file.replace("_full.", "_meta."), "rb") as handle:
         metadata = pickle.load(handle)
     return data, metadata
 
@@ -144,7 +234,7 @@ def convert2_maDLC(config, userfeedback=True, forceindividual=None):
     """
     Converts single animal annotation file into a multianimal annotation file,
     by introducing an individuals column with either the first individual
-    in individuals list in config.yaml or whatever is passsed via "forceindividual".
+    in individuals list in config.yaml or whatever is passed via "forceindividual".
 
     ----------
     config : string
@@ -206,6 +296,7 @@ def convert2_maDLC(config, userfeedback=True, forceindividual=None):
 
             fn = os.path.join(str(folder), "CollectedData_" + cfg["scorer"])
             Data = pd.read_hdf(fn + ".h5")
+            conversioncode.guarantee_multiindex_rows(Data)
             imindex = Data.index
 
             print("This is a single animal data set, converting to multi...", folder)
@@ -238,7 +329,7 @@ def convert2_maDLC(config, userfeedback=True, forceindividual=None):
             if len(uniquebodyparts) == 0:
                 dataFrame = None
 
-            # -> adding (indivdual,bpt) for multianimalbodyparts
+            # -> adding (individual,bpt) for multianimalbodyparts
             for j, bpt in enumerate(multianimalbodyparts):
                 index = pd.MultiIndex.from_arrays(
                     np.array(
@@ -269,11 +360,11 @@ def convert2_maDLC(config, userfeedback=True, forceindividual=None):
                     dataFrame = pd.concat([dataFrame, frame], axis=1)
 
             Data.to_hdf(
-                fn + "singleanimal.h5", "df_with_missing", format="table", mode="w"
+                fn + "singleanimal.h5", "df_with_missing",
             )
             Data.to_csv(fn + "singleanimal.csv")
 
-            dataFrame.to_hdf(fn + ".h5", "df_with_missing", format="table", mode="w")
+            dataFrame.to_hdf(fn + ".h5", "df_with_missing")
             dataFrame.to_csv(fn + ".csv")
 
 
@@ -299,10 +390,11 @@ def convert_single2multiplelegacyAM(config, userfeedback=True, target=None):
         ):  # multilanguage support :)
             fn = os.path.join(str(folder), "CollectedData_" + cfg["scorer"])
             Data = pd.read_hdf(fn + ".h5")
+            conversioncode.guarantee_multiindex_rows(Data)
             imindex = Data.index
 
             if "individuals" in Data.columns.names and (
-                target == None or target == "single"
+                target is None or target == "single"
             ):
                 print("This is a multianimal data set, converting to single...", folder)
                 for prfxindex, prefix in enumerate(prefixes):
@@ -342,15 +434,15 @@ def convert_single2multiplelegacyAM(config, userfeedback=True, target=None):
                         DataFrame = pd.concat([DataFrame, dataFrame], axis=1)
 
                 Data.to_hdf(
-                    fn + "multianimal.h5", "df_with_missing", format="table", mode="w"
+                    fn + "multianimal.h5", "df_with_missing",
                 )
                 Data.to_csv(fn + "multianimal.csv")
 
                 DataFrame.to_hdf(
-                    fn + ".h5", "df_with_missing", format="table", mode="w"
+                    fn + ".h5", "df_with_missing",
                 )
                 DataFrame.to_csv(fn + ".csv")
-            elif target == None or target == "multi":
+            elif target is None or target == "multi":
                 print(
                     "This is a single animal data set, converting to multi...", folder
                 )
@@ -429,12 +521,12 @@ def convert_single2multiplelegacyAM(config, userfeedback=True, target=None):
                         DataFrame = pd.concat([DataFrame, dataFrame], axis=1)
 
                 Data.to_hdf(
-                    fn + "singleanimal.h5", "df_with_missing", format="table", mode="w"
+                    fn + "singleanimal.h5", "df_with_missing",
                 )
                 Data.to_csv(fn + "singleanimal.csv")
 
                 DataFrame.to_hdf(
-                    fn + ".h5", "df_with_missing", format="table", mode="w"
+                    fn + ".h5", "df_with_missing",
                 )
                 DataFrame.to_csv(fn + ".csv")
 
@@ -448,9 +540,7 @@ def form_default_inferencecfg(cfg):
     inferencecfg["minimalnumberofconnections"] = (
         len(cfg["multianimalbodyparts"]) / 2
     )  # reasonable default
-    inferencecfg["topktoretain"] = len(cfg["individuals"]) + 1 * (
-        len(cfg["uniquebodyparts"]) > 0
-    )  # reasonable default
+    inferencecfg["topktoretain"] = len(cfg["individuals"])
     return inferencecfg
 
 

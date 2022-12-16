@@ -1,16 +1,16 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 
 Loader structure adapted from DeeperCut by Eldar Insafutdinov
 https://github.com/eldar/pose-tensorflow
 
 See pull request:
-https://github.com/AlexEMG/DeepLabCut/pull/409
+https://github.com/DeepLabCut/DeepLabCut/pull/409
 use tensorpack dataflow to improve augmentation #409 and #426
 Written largely by Kate Rupp -- Thanks!
 
@@ -25,6 +25,7 @@ import os
 import cv2
 import numpy as np
 import scipy.io as sio
+from deeplabcut.utils.conversioncode import robust_split_path
 from numpy import array as arr
 from tensorpack.dataflow.base import RNGDataFlow
 from tensorpack.dataflow.common import MapData
@@ -112,8 +113,12 @@ class Pose(RNGDataFlow):
             item = DataItem()
             item.image_id = i
             base = str(self.cfg["project_path"])
-            im_path = os.path.join(base, sample[0][0])
-            item.im_path = im_path
+            im_path = sample[0][0]
+            if isinstance(im_path, str):
+                im_path = robust_split_path(im_path)
+            else:
+                im_path = [s.strip() for s in im_path]
+            item.im_path = os.path.join(base, *im_path)
             item.im_size = sample[1][0]
             if len(sample) >= 3:
                 joints = sample[2][0][0]
@@ -353,8 +358,8 @@ class TensorpackPoseDataset(BasePoseDataset):
         for person_id in range(len(coords)):
             for k, j_id in enumerate(joint_id[person_id]):
                 joint_pt = coords[person_id][k, :]
-                j_x = np.asscalar(joint_pt[0])
-                j_y = np.asscalar(joint_pt[1])
+                j_x = np.asarray(joint_pt[0]).item()
+                j_y = np.asarray(joint_pt[1]).item()
 
                 # don't loop over entire heatmap, but just relevant locations
                 j_x_sm = round((j_x - half_stride) / stride)

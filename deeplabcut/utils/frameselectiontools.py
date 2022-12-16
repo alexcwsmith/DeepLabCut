@@ -1,10 +1,10 @@
 """
 DeepLabCut2.0 Toolbox (deeplabcut.org)
 © A. & M. Mathis Labs
-https://github.com/AlexEMG/DeepLabCut
+https://github.com/DeepLabCut/DeepLabCut
 Please see AUTHORS for contributors.
 
-https://github.com/AlexEMG/DeepLabCut/blob/master/AUTHORS
+https://github.com/DeepLabCut/DeepLabCut/blob/master/AUTHORS
 Licensed under GNU Lesser General Public License v3.0
 """
 
@@ -208,8 +208,6 @@ def KmeansbasedFrameselectioncv2(
     numframes2pick,
     start,
     stop,
-    crop,
-    coords,
     Index=None,
     step=1,
     resizewidth=30,
@@ -226,7 +224,7 @@ def KmeansbasedFrameselectioncv2(
 
     Note: this method can return fewer images than numframes2pick.
 
-    Attention: the flow of commands was not optimized for readability, but rather speed. This is why it might appear tedious and repetetive."""
+    Attention: the flow of commands was not optimized for readability, but rather speed. This is why it might appear tedious and repetitive."""
     nframes = len(cap)
     nx, ny = cap.dimensions
     ratio = resizewidth * 1.0 / nx
@@ -262,16 +260,8 @@ def KmeansbasedFrameselectioncv2(
             if color:
                 for counter, index in tqdm(enumerate(Index)):
                     cap.set_to_frame(index)  # extract a particular frame
-                    frame = cap.read_frame()
+                    frame = cap.read_frame(crop=True)
                     if frame is not None:
-                        if crop:
-                            frame = frame[
-                                int(coords[2]) : int(coords[3]),
-                                int(coords[0]) : int(coords[1]),
-                                :,
-                            ]
-
-                        # image=img_as_ubyte(cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),None,fx=ratio,fy=ratio))
                         image = img_as_ubyte(
                             cv2.resize(
                                 frame,
@@ -294,15 +284,8 @@ def KmeansbasedFrameselectioncv2(
             else:
                 for counter, index in tqdm(enumerate(Index)):
                     cap.set_to_frame(index)  # extract a particular frame
-                    frame = cap.read_frame()
+                    frame = cap.read_frame(crop=True)
                     if frame is not None:
-                        if crop:
-                            frame = frame[
-                                int(coords[2]) : int(coords[3]),
-                                int(coords[0]) : int(coords[1]),
-                                :,
-                            ]
-                        # image=img_as_ubyte(cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),None,fx=ratio,fy=ratio))
                         image = img_as_ubyte(
                             cv2.resize(
                                 frame,
@@ -324,16 +307,8 @@ def KmeansbasedFrameselectioncv2(
             print("Extracting and downsampling...", nframes, " frames from the video.")
             if color:
                 for counter, index in tqdm(enumerate(Index)):
-                    frame = cap.read_frame()
+                    frame = cap.read_frame(crop=True)
                     if frame is not None:
-                        if crop:
-                            frame = frame[
-                                int(coords[2]) : int(coords[3]),
-                                int(coords[0]) : int(coords[1]),
-                                :,
-                            ]
-
-                        # image=img_as_ubyte(cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),None,fx=ratio,fy=ratio))
                         image = img_as_ubyte(
                             cv2.resize(
                                 frame,
@@ -355,15 +330,8 @@ def KmeansbasedFrameselectioncv2(
                         )
             else:
                 for counter, index in tqdm(enumerate(Index)):
-                    frame = cap.read_frame()
+                    frame = cap.read_frame(crop=True)
                     if frame is not None:
-                        if crop:
-                            frame = frame[
-                                int(coords[2]) : int(coords[3]),
-                                int(coords[0]) : int(coords[1]),
-                                :,
-                            ]
-                        # image=img_as_ubyte(cv2.resize(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),None,fx=ratio,fy=ratio))
                         image = img_as_ubyte(
                             cv2.resize(
                                 frame,

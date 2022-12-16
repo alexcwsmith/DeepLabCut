@@ -1051,4 +1051,33 @@ def trimVideos(directory, start=0, length=20, fps=30, videoType='.mp4'):
             fullpath = os.path.join(directory, f)
             vid = ffmpeg.input(fullpath)            
             vid.trim(start_frame = start, end_frame = endFrame).setpts('PTS-STARTPTS').output(os.path.join(directory, 'trimmed', n+'_trim'+str(length)+'m'+e)).run()
-    
+
+#%%
+def calcAverageLikelihood(file, bodyParts='all', pcutoff=None, startFrame=None, stopFrame=None, saveCSV = True): 
+    directory = os.path.dirname(file)
+    n, e = os.path.splitext(os.path.basename(file))
+    sampleName = n.split("DLC")[0]
+    if file.endswith('.csv'):
+        df = pd.read_csv(file, header = [0,1,2], index_col=0)
+    elif file.endswith('.h5'):
+        df = pd.read_hdf(file)
+        if startFrame or stopFrame:
+            df = df[startFrame:stopFrame]
+    scorerName = df.columns[0][0]
+    bodyparts = set(df.columns[x][1] for x in range(len(df.columns)))
+    results={}
+    for bp in bodyparts:
+        if pcutoff:
+            aveLH = np.mean(df.loc[df[(scorerName, bp, 'likelihood')] > pcutoff][(scorerName, bp, 'likelihood')])
+        elif not pcutoff:
+            aveLH = np.mean(df[(scorerName, bp, 'likelihood')])
+        results.update({bp:aveLH})
+    if pcutoff:
+        results.update({'pcutoff':pcutoff})
+    data = pd.DataFrame([results]).T
+    data.columns=[sampleName]
+    if saveCSV or e=='.csv':
+        data.to_csv(os.path.join(directory, n+'_averageLikelihoods.csv'))
+    else:
+        data.to_hdf(os.path.join(directory, n+'_averageLikelihoods.h5'), key='data')
+    return data

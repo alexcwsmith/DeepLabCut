@@ -57,9 +57,9 @@ poseCfgTemplate='/d1/studies/DLC_Data/MeganRotation-smith-2022-12-13/dlc-models/
 dlc.create_training_dataset(path_config_file, num_shuffles=2, net_type='resnet_50', augmenter_type='imgaug', posecfg_template=None)
 
 #%%TRAIN NETWORK
-dlc.train_network(path_config_file, shuffle=1, max_snapshots_to_keep=None, allow_growth=True, keepdeconvweights=True)
+dlc.train_network(path_config_file, shuffle=2, max_snapshots_to_keep=None, allow_growth=True, keepdeconvweights=True)
 #%% EVALUATE & PLOT LOSS:
-dlc.evaluate_network(path_config_file, plotting=False, term_gpu=False)
+dlc.evaluate_network(path_config_file, Shuffles=[1,2], plotting=False, term_gpu=False)
 hf.plotLoss(path_config_file)
 
 #%%ANALYZE VIDEOS:
@@ -112,7 +112,9 @@ dlc.create_labeled_video(path_config_file, ['/d1/studies/DLC_data/OperantWithCue
 ###PLOT TRAJECTORIES:
 bodyParts=cfg['bodyparts']
 destfolder=videoDirectory
-dlc.plot_trajectories(path_config_file, vids, videotype=videoFormat, displayedbodyparts=bodyParts, filtered=False, destfolder=destfolder, track_method='', imagetype='.png', linewidth=0.5, resolution=300)
+dlc.plot_trajectories(path_config_file, vids, videotype=videoFormat, displayedbodyparts=bodyParts,
+                      filtered=False, destfolder=destfolder, track_method='', imagetype='.png',
+                      linewidth=0.5, resolution=300)
 #Reorganize plots into folders with each plot type:
 parentDirectory = '/d1/studies/DLC_Data/MeganRotation-smith-2022-12-13/videos/plot-poses'
 hf.extractPoses(parentDirectory)

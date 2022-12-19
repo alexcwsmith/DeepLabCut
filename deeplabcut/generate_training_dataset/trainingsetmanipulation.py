@@ -565,7 +565,7 @@ def ParseYaml(configfile):
 
 
 def MakeTrain_pose_yaml(
-    itemstochange, saveasconfigfile, defaultconfigfile, items2drop={}
+    itemstochange, saveasconfigfile, defaultconfigfile, items2drop={}, sort_keys=False
 ):
     docs = ParseYaml(defaultconfigfile)
     for key in items2drop.keys():
@@ -577,7 +577,7 @@ def MakeTrain_pose_yaml(
         docs[0][key] = itemstochange[key]
 
     with open(saveasconfigfile, "w") as f:
-        yaml.dump(docs[0], f)
+        yaml.dump(docs[0], f, sort_keys=sort_keys)
 
     return docs[0]
 
@@ -933,6 +933,7 @@ def create_training_dataset(
     net_type=None,
     augmenter_type=None,
     posecfg_template=None,
+    sort_keys=False,
 ):
     """
     Creates a training dataset. Labels from all the extracted frames are merged into a single .h5 file.\n
@@ -977,6 +978,9 @@ def create_training_dataset(
     posecfg_template: string (optional, default=None)
         Path to a pose_cfg.yaml file to use as a template for generating the new one for the current iteration. Useful if you
         would like to start with the same parameters a previous training iteration. None uses the default pose_cfg.yaml.
+
+    sort_keys : bool (optional, default=False)
+        Whether to alphabetically sort keys in the created pose_cfg.yaml file.
 
     Example
     --------
@@ -1223,7 +1227,7 @@ def create_training_dataset(
                     items2drop = {"rotation": 0, "rotratio": 0.0}
 
                 trainingdata = MakeTrain_pose_yaml(
-                    items2change, path_train_config, defaultconfigfile, items2drop
+                    items2change, path_train_config, defaultconfigfile, items2drop, sort_keys=sort_keys
                 )
 
                 keys2save = [

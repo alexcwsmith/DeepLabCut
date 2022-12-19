@@ -284,16 +284,17 @@ def train(
         if it % display_iters == 0 and it > start_iter:
             cTime = dt.now()
             itTime = cTime-startTime
-            minutes=itTime.seconds/60
+       #     minutes=itTime.seconds/60
+            itTime = display_iters/itTime.seconds
             
             average_loss = cum_loss / display_iters
             cum_loss = 0.0
             logging.info(
-                "iteration: {} loss: {} lr: {} minutes: {}".format(
-                    it, "{0:.4f}".format(average_loss), current_lr, round(minutes,2)
+                "iteration: {} loss: {} lr: {} it/s: {}".format(
+                    it, "{0:.4f}".format(average_loss), current_lr, round(itTime,2)
                 )
             )
-            lrf.write("{}, {:.5f}, {}, {}\n".format(it, average_loss, current_lr, str(round(minutes,2))+" minutes"))
+            lrf.write("{}, {:.5f}, {}, {}\n".format(it, average_loss, current_lr, str(round(itTime,2))+" it/s"))
             lrf.flush()
             startTime=dt.now()
 

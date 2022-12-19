@@ -260,7 +260,7 @@ def train(
 
     stats_path = Path(config_yaml).with_name("learning_stats.csv")
     lrf = open(str(stats_path), "w")
-    lrf.write("iteration, loss, learning_rate, time to complete\n")
+    lrf.write("iteration, loss, learning_rate, iterations per second\n")
     lrf.flush()
 
     print("Training parameter:")

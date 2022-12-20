@@ -565,7 +565,7 @@ def ParseYaml(configfile):
 
 
 def MakeTrain_pose_yaml(
-    itemstochange, saveasconfigfile, defaultconfigfile, items2drop={}, sort_keys=False
+    itemstochange, saveasconfigfile, defaultconfigfile, items2drop={}, sort_keys=True
 ):
     docs = ParseYaml(defaultconfigfile)
     for key in items2drop.keys():
@@ -933,7 +933,7 @@ def create_training_dataset(
     net_type=None,
     augmenter_type=None,
     posecfg_template=None,
-    sort_keys=False,
+    sort_keys=True,
 ):
     """
     Creates a training dataset. Labels from all the extracted frames are merged into a single .h5 file.\n

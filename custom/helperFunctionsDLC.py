@@ -8,6 +8,7 @@ Created on Sun Jul 26 15:29:26 2020
 
 import numpy as np
 import pandas as pd
+from scipy.spatial import distance
 import os
 import shutil
 import cv2
@@ -846,18 +847,14 @@ def plotTrainingLoss(config, iteration=None, shuffle=1, imagetype='.png', resolu
     """
     cfg = auxiliaryfunctions.read_config(config)
     task = cfg['Task']
-    scorer = cfg['scorer']
     date = cfg['date']
     trainFraction = int(cfg['TrainingFraction'][0]*100)
-    if not iteration:
-        it=cfg['iteration']
-    elif iteration:
-        it = iteration
+    it = iteration if not iteration==None else cfg['iteration']
     projectPath = cfg['project_path']
     lossPath = os.path.join(projectPath, 'dlc-models', 'iteration-'+str(it), task+date+'-trainset'+str(trainFraction)+'shuffle'+str(shuffle), 'train')
-    df = pd.read_csv(os.path.join(lossPath, 'learning_stats.csv'), index_col=0, header=None)
-    df.columns=['loss', 'learning_rate']
-    ticks = df.index.tolist()
+    df = pd.read_csv(os.path.join(lossPath, 'learning_stats.csv'), index_col=0, header=0)
+    df.columns=['loss', 'learning_rate', 'it/s']
+    ticks = df.index.tolist()[1::15]
     fig, ax = plt.subplots()
     df.plot(kind='line', y='loss', color='blue', legend=True, ax=ax)
     plt.xticks(ticks=ticks, rotation=45)
@@ -865,8 +862,81 @@ def plotTrainingLoss(config, iteration=None, shuffle=1, imagetype='.png', resolu
     ax.set_xlabel('Iteration', fontsize=18)
     fig.savefig(os.path.join(lossPath, 'LossPlot_iteration'+str(it)+imagetype), bbox_inches='tight', dpi=resolution)
 
+#%%
+def calcPairwiseDistances(config, iteration=None, shuffle=1, snapshotindex=None):
+    """Calc mean error for individual body parts after evaluation.
+
+    Parameters
+    ----------
+    config : str
+        Path to config.yaml file
+    iteration : int, optional
+        iteration to process. Default None reads from config.
+    shuffle : int, optional
+        Shuffle # to load evaluation results for. The default is 1.
+    snapshotindex : int, optional
+        Index of snapshot of evaluation results. Default None reads from config.s
+
+    Returns
+    -------
+    Pandas dataframe of distances for each body part for each labeled frame.
+    
+    #TODO: Incorporate train and test indices
+
+    """
+    #Read config and set relevant paths
+    cfg = auxiliaryfunctions.read_config(config)
+    task = cfg['Task']
+    date = cfg['date']
+    scorer = cfg['scorer']
+    bodyParts = cfg['bodyparts']
+    trainFraction = int(cfg['TrainingFraction'][0]*100)
+    snap = snapshotindex if not snapshotindex==None else cfg['snapshotindex']
+    it = iteration if not iteration==None else cfg['iteration']
+    projectPath = cfg['project_path']
+    evalPath = os.path.join(projectPath, 'evaluation-results', 'iteration-'+str(it), task+date+'-trainset'+str(trainFraction)+'shuffle'+str(shuffle))
+    snaps = loadDir(evalPath, ext='.h5')
+    numIters, _ = os.path.splitext(snaps[snap].split('snapshot-')[-1])
+    trainSetPath = os.path.join(projectPath, 'training-datasets', 'iteration-'+str(it), 'UnaugmentedDataSet_'+task+date)
+    trainData = glob.glob(os.path.join(trainSetPath, '*.h5'))[0]
+    
+    #Load the results:
+    fullResult = pd.read_hdf(snaps[snap])
+    dlcScorer = fullResult.columns[0][0]
+    result = fullResult.drop('likelihood', axis=1, level=2)
+    labels = pd.read_hdf(os.path.join(trainData))
+    print("Loaded training data from {}".format(trainData))
+    diff = result-labels
+    cols = result.columns
+    ind = labels.index.tolist()
+    resultDf = pd.DataFrame(index=['mean', 'stdev'])
+    for bp in bodyParts:
+        cat = pd.DataFrame(index=ind)
+        velocities = []
+        frames = []
+        label_bpx = labels[(scorer, bp, 'x')].tolist()
+        label_bpy = labels[(scorer, bp, 'y')].tolist()
+        result_bpx = result[(dlcScorer, bp, 'x')].tolist()
+        result_bpy = result[(dlcScorer, bp, 'y')].tolist()
+        cat['label_x']=label_bpx
+        cat['label_y']=label_bpy
+        cat['result_x']=result_bpx
+        cat['result_y']=result_bpy
+        cat.dropna(how='any', axis=0, inplace=True)
+        label_xy = list(zip(cat['label_x'].tolist(), cat['label_y'].tolist()))
+        result_xy = list(zip(cat['result_x'].tolist(), cat['result_y'].tolist()))
+        dists = []
+        for i in range(len(label_xy)):
+            dst = distance.euclidean(result_xy[i], label_xy[i])
+            dists.append(dst)
+        mean = np.mean(dists)
+        stdev = np.std(dists)
+        resultDf[bp]=[mean, stdev]
+    resultDf.to_csv(os.path.join(projectPath, 'evaluation-results', 'iteration-'+str(it), 'AverageDistancesByBodyPart.csv'))
+    return result
+
 #%%    
-def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
+def plotEvalResults(config, iteration=None, imagetype='.png', resolution=100):
     """Plot training loss.
     
 
@@ -887,10 +957,7 @@ def plotLoss(config, iteration=None, imagetype='.png', resolution=100):
 
     """
     cfg = auxiliaryfunctions.read_config(config)
-    if not iteration:
-        it=cfg['iteration']
-    elif iteration:
-        it = iteration
+    it = iteration if not iteration==None else cfg['iteration']
     projectPath = cfg['project_path']
     evalPath = os.path.join(projectPath, 'evaluation-results')
     df = pd.read_csv(os.path.join(evalPath, 'iteration-'+str(it), 'CombinedEvaluation-results.csv'), index_col=0)

@@ -22,7 +22,9 @@ import random
 
 
 #%%
-def loadDir(path, ext='.tif', shuffle=False):
+def loadDir(path, ext='.tif', prefix=None, shuffle=False):
+    if prefix:
+        return glob.glob(os.path.join(path, prefix+'*'+ext))
     if not shuffle:
         return sorted(os.path.join(path, x) for x in os.listdir(path) if x.endswith(ext))
     elif shuffle:
@@ -1043,7 +1045,7 @@ def checkLabelSD(config, drop=None):
             xstd = np.nanstd(xdata, axis=1)
             ystd = np.nanstd(ydata, axis=1)
             stdDf = pd.DataFrame(xstd, ystd).reset_index()
-            stdDf.columns=['X','Y']
+            stdDf.columns=['Y','X']
             stdDf.index=df.index
             cat = pd.concat([cat, stdDf], axis=0)
     cat.to_csv(os.path.join(projectPath, 'labeledData_StDevs_iter'+str(it)+'.csv'))

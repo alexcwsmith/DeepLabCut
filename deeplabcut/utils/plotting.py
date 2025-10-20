@@ -42,6 +42,8 @@ def PlottingResults(
     suffix=".png",
     resolution=100,
     linewidth=1.0,
+    xlim=None,
+    ylim=None
 ):
     """ Plots poses vs time; pose x vs pose y; histogram of differences and likelihoods."""
     pcutoff = cfg["pcutoff"]
@@ -50,20 +52,28 @@ def PlottingResults(
     if individuals2plot:
         Dataframe = Dataframe.loc(axis=1)[:, individuals2plot]
     animal_bpts = Dataframe.columns.get_level_values("bodyparts")
-    # Pose X vs pose Y
+    # Pose X vs pose Y - trajectory
     fig1 = plt.figure(figsize=(8, 6))
     ax1 = fig1.add_subplot(111)
     ax1.set_xlabel("X position in pixels")
     ax1.set_ylabel("Y position in pixels")
+    if xlim:
+        if not isinstance(xlim, tuple):
+            raise TypeError("xlim argument must be tuple")
+        ax1.set_xlim(xmin=xlim[0], xmax=xlim[1])
+    if ylim:
+        if not isinstance(ylim, tuple):
+            raise TypeError("ylim argument must be tuple")
+        ax1.set_ylim(ymin=ylim[0], ymax=ylim[1])
     ax1.invert_yaxis()
 
-    # Poses vs time
+    # Poses vs time - plot
     fig2 = plt.figure(figsize=(10, 3))
     ax2 = fig2.add_subplot(111)
     ax2.set_xlabel("Frame Index")
     ax2.set_ylabel("X-(dashed) and Y- (solid) position in pixels")
 
-    # Likelihoods
+    # Likelihoods - plot-likelihood
     fig3 = plt.figure(figsize=(10, 3))
     ax3 = fig3.add_subplot(111)
     ax3.set_xlabel("Frame Index")
@@ -125,6 +135,10 @@ def PlottingResults(
         norm=plt.Normalize(vmin=0, vmax=len(bodyparts2plot) - 1),
     )
     sm._A = []
+    if suffix=='.pdf':
+        import matplotlib
+        matplotlib.rcParams['pdf.fonttype'] = 42
+        matplotlib.rcParams['ps.fonttype'] = 42
     for ax in ax1, ax2, ax3, ax4:
         cbar = plt.colorbar(sm, ax=ax, ticks=range(len(bodyparts2plot)))
         cbar.set_ticklabels(bodyparts2plot)
@@ -135,15 +149,16 @@ def PlottingResults(
         dpi=resolution,
     )
     fig2.savefig(
-        os.path.join(tmpfolder, "plot" + suffix), bbox_inches="tight", dpi=resolution
+        os.path.join(tmpfolder, "plot" + suffix), bbox_inches="tight", dpi=resolution, transparent=suffix=='.pdf'
     )
     fig3.savefig(
         os.path.join(tmpfolder, "plot-likelihood" + suffix),
         bbox_inches="tight",
         dpi=resolution,
+        transparent=suffix=='.pdf'
     )
     fig4.savefig(
-        os.path.join(tmpfolder, "hist" + suffix), bbox_inches="tight", dpi=resolution
+        os.path.join(tmpfolder, "hist" + suffix), bbox_inches="tight", dpi=resolution, transparent=suffix=='.pdf'
     )
 
     if not showfigures:
@@ -173,6 +188,8 @@ def plot_trajectories(
     imagetype=".png",
     resolution=100,
     linewidth=1.0,
+    xlim=None,
+    ylim=None
 ):
     """
     Plots the trajectories of various bodyparts across the video.
@@ -291,6 +308,8 @@ def plot_trajectories(
                     suffix + animal + imagetype,
                     resolution=resolution,
                     linewidth=linewidth,
+                    xlim=xlim,
+                    ylim=ylim
                 )
         except FileNotFoundError as e:
             failed.append(True)
